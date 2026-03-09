@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  boilerplate-nest-dev:
+    container_name: boilerplate-nest-dev
+    build:
+      context: ../
+      dockerfile: ./build/Dockerfile
+    command:
+      ['sh', '-c', 'chmod +x ./build/entrypoint.sh && ./build/entrypoint.sh']
+    ports:
+      - ${PORT_BE:-3000}:3000
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DEV}
+      JWT_SECRET: ${JWT_SECRET}
+      SUPER_ADMIN_PASSWORD_SEED: ${SUPER_ADMIN_PASSWORD_SEED}
+      SWAGGER_USERNAME: ${SWAGGER_USERNAME}
+      SWAGGER_PASSWORD: ${SWAGGER_PASSWORD}
+    volumes:
+      - ../:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      - boilerplate-nest-database-mysql-dev
+    networks:
+      - boilerplate-network
+    restart: unless-stopped
+
+  boilerplate-nest-database-mysql-dev:
+    container_name: boilerplate-nest-database-mysql-dev
+    image: mysql:8
+    ports:
+      - '3306:3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - boilerplate-mysql-dev-data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - boilerplate-network
+    restart: unless-stopped
+
+volumes:
+  boilerplate-mysql-dev-data:
+
+networks:
+  boilerplate-network:
+    external: true
