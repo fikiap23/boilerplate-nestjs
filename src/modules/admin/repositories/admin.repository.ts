@@ -20,6 +20,8 @@ export const AdminRepository = createPrismaRepository<
   Prisma.AdminOrderByWithRelationInput,
   AdminToPayload
 >({
+  model: 'admin',
+  cache: { enabled: true, ttl: 300, nullTtl: 60 },
   getDelegate: (client) => client.admin,
   toPayload: <T extends Prisma.AdminSelect>(data: unknown) =>
     data as AdminPayload<T>,

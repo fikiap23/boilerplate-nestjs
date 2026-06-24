@@ -2,6 +2,7 @@ import { plainToInstance } from 'class-transformer';
 import {
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Min,
   validateSync,
@@ -27,6 +28,28 @@ class EnvironmentVariables {
   @IsString()
   @IsNotEmpty()
   SWAGGER_PASSWORD: string;
+
+  @IsString()
+  @IsOptional()
+  REDIS_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  REDIS_HOST?: string;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  REDIS_PORT?: number;
+
+  @IsString()
+  @IsOptional()
+  REDIS_PREFIX?: string;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  REDIS_DEFAULT_TTL?: number;
 }
 
 export function validate(config: Record<string, unknown>) {

@@ -17,11 +17,17 @@ services:
       SUPER_ADMIN_PASSWORD_SEED: ${SUPER_ADMIN_PASSWORD_SEED}
       SWAGGER_USERNAME: ${SWAGGER_USERNAME}
       SWAGGER_PASSWORD: ${SWAGGER_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST:-boilerplate-nest-redis-dev}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PREFIX: ${REDIS_PREFIX:-bn}
+      REDIS_DEFAULT_TTL: ${REDIS_DEFAULT_TTL:-300}
     volumes:
       - ../:/usr/src/app
       - /usr/src/app/node_modules
     depends_on:
       boilerplate-nest-database-postgres-dev:
+        condition: service_healthy
+      boilerplate-nest-redis-dev:
         condition: service_healthy
     networks:
       - boilerplate-network
@@ -48,8 +54,27 @@ services:
       retries: 10
       start_period: 10s
 
+  boilerplate-nest-redis-dev:
+    container_name: boilerplate-nest-redis-dev
+    image: redis:7-alpine
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - boilerplate-redis-dev-data:/data
+    networks:
+      - boilerplate-network
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
 volumes:
   boilerplate-postgres-dev-data:
+  boilerplate-redis-dev-data:
 
 networks:
   boilerplate-network:

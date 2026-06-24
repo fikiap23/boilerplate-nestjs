@@ -17,8 +17,14 @@ services:
       SWAGGER_USERNAME: ${SWAGGER_USERNAME}
       SWAGGER_PASSWORD: ${SWAGGER_PASSWORD}
       RUN_SEED: ${RUN_SEED:-0}
+      REDIS_HOST: ${REDIS_HOST:-boilerplate-nest-redis-production}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PREFIX: ${REDIS_PREFIX:-bn}
+      REDIS_DEFAULT_TTL: ${REDIS_DEFAULT_TTL:-300}
     depends_on:
       boilerplate-nest-database-postgres-production:
+        condition: service_healthy
+      boilerplate-nest-redis-production:
         condition: service_healthy
     networks:
       - boilerplate-network
@@ -55,8 +61,25 @@ services:
       retries: 10
       start_period: 20s
 
+  boilerplate-nest-redis-production:
+    container_name: boilerplate-nest-redis-production
+    image: redis:7-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - boilerplate-redis-production-data:/data
+    networks:
+      - boilerplate-network
+    restart: always
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
 volumes:
   boilerplate-postgres-production-data:
+  boilerplate-redis-production-data:
 
 networks:
   boilerplate-network:

@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
+import { RedisModule } from './infrastructure/redis/redis.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { AdminModule } from './modules/admin/admin.module';
 import { CommonModule } from './common/common.module';
@@ -19,6 +20,7 @@ import { validate } from './config/env.validation';
     }),
     CommonModule,
     PrismaModule,
+    RedisModule,
     AuthModule,
     AdminModule,
   ],

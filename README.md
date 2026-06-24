@@ -14,6 +14,7 @@ NestJS boilerplate with **Auth (JWT)** and **Admin (Prisma)** — template with 
 
 - Node.js 20+
 - PostgreSQL 16 (local or Docker)
+- Redis 7 (local or Docker, optional for repository cache)
 - npm or yarn
 
 ## Setup (local)
@@ -22,7 +23,7 @@ NestJS boilerplate with **Auth (JWT)** and **Admin (Prisma)** — template with 
 # Install dependencies
 npm install
 
-# Copy environment file and edit DATABASE_URL, JWT_SECRET
+# Copy environment file and edit DATABASE_URL, JWT_SECRET, REDIS_*
 cp .env.example .env
 
 # Generate Prisma client and run migrations
@@ -58,7 +59,7 @@ cp build/.env.example .env
 ### Dev (local development in Docker)
 
 ```bash
-make up      # Start app + PostgreSQL, follow logs
+make up      # Start app + PostgreSQL + Redis, follow logs
 make down    # Stop
 make logs    # Follow app logs
 make exec    # Shell into app container
@@ -68,14 +69,15 @@ make restart # Restart app and follow logs
 - **API**: http://localhost:3000  
 - **Swagger**: http://localhost:3000/docs (basic auth from `SWAGGER_USERNAME` / `SWAGGER_PASSWORD`)  
 - **PostgreSQL**: localhost:5432 (user/password from `.env`)
+- **Redis**: localhost:6379 (repository cache; `REDIS_HOST` / `REDIS_PORT` in `.env`)
 
 ### Production
 
 ```bash
 cp build/.env.production.example build/.env.production
-# Edit build/.env.production (DATABASE_URL, JWT_SECRET, etc.)
+# Edit build/.env.production (DATABASE_URL, JWT_SECRET, REDIS_*, etc.)
 
-make up-prod     # Build and start app + PostgreSQL
+make up-prod     # Build and start app + PostgreSQL + Redis
 make down-prod   # Stop
 make logs-prod   # Follow app logs
 make exec-prod   # Shell into app container
@@ -101,6 +103,8 @@ Env for migrate is in `build/.env.migrate` (defaults point at `boilerplate-nest-
 | `PORT_BE` | Host port for app (default 3000) |
 | `DB_HOST`, `DB_PORT`, `POSTGRES_*` | PostgreSQL connection for dev |
 | `DATABASE_URL_DEV` | Full PostgreSQL URL for dev (built from above) |
+| `REDIS_HOST`, `REDIS_PORT` | Redis connection (dev container: `boilerplate-nest-redis-dev`) |
+| `REDIS_PREFIX`, `REDIS_DEFAULT_TTL` | Cache key namespace and default TTL (seconds) |
 | `JWT_SECRET`, `SUPER_ADMIN_PASSWORD_SEED` | Auth |
 | `SWAGGER_USERNAME`, `SWAGGER_PASSWORD` | Swagger UI basic auth |
 
