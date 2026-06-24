@@ -70,6 +70,7 @@ make restart # Restart app and follow logs
 - **Swagger**: http://localhost:3000/docs (basic auth from `SWAGGER_USERNAME` / `SWAGGER_PASSWORD`)  
 - **PostgreSQL**: localhost:5432 (user/password from `.env`)
 - **Redis**: localhost:6379 (repository cache; `REDIS_HOST` / `REDIS_PORT` in `.env`)
+- **Redis Commander**: http://localhost:8081 (`REDIS_COMMANDER_HTTP_USER` / `REDIS_COMMANDER_HTTP_PASSWORD`)
 
 ### Production
 
@@ -105,6 +106,7 @@ Env for migrate is in `build/.env.migrate` (defaults point at `boilerplate-nest-
 | `DATABASE_URL_DEV` | Full PostgreSQL URL for dev (built from above) |
 | `REDIS_HOST`, `REDIS_PORT` | Redis connection (dev container: `boilerplate-nest-redis-dev`) |
 | `REDIS_PREFIX`, `REDIS_DEFAULT_TTL` | Cache key namespace and default TTL (seconds) |
+| `PORT_REDIS_COMMANDER`, `REDIS_COMMANDER_HTTP_*` | Redis Commander UI (dev Docker only) |
 | `JWT_SECRET`, `SUPER_ADMIN_PASSWORD_SEED` | Auth |
 | `SWAGGER_USERNAME`, `SWAGGER_PASSWORD` | Swagger UI basic auth |
 
