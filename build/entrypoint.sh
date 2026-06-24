@@ -2,14 +2,14 @@
 
 set -e
 
-echo "Waiting for MySQL to be ready..."
+echo "Waiting for PostgreSQL to be ready..."
 
-until nc -z boilerplate-nest-database-mysql-dev 3306; do
-  echo "MySQL not ready yet, retrying..."
+until nc -z boilerplate-nest-database-postgres-dev 5432; do
+  echo "PostgreSQL not ready yet, retrying..."
   sleep 3
 done
 
-echo "MySQL is up!"
+echo "PostgreSQL is up!"
 
 echo "Generate Prisma Client"
 npx prisma generate

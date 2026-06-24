@@ -11,7 +11,7 @@ COMPOSE_MIGRATE   := -f build/docker-compose.migrate.yml --env-file build/.env.m
 CONTAINER_DEV        := boilerplate-nest-dev
 CONTAINER_PROD       := boilerplate-nest-production
 CONTAINER_MIGRATE    := boilerplate-nest-migrate
-CONTAINER_DB_MIGRATE := boilerplate-nest-database-mysql-migrate
+CONTAINER_DB_MIGRATE := boilerplate-nest-database-postgres-migrate
 
 # -----------------------------------------------------------------------------
 # Dev (local development)

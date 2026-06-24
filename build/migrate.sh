@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-echo "Waiting for MySQL..."
+echo "Waiting for PostgreSQL..."
 sleep 10
 
 echo "Generate Prisma Client"

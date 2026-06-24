@@ -1,24 +1,28 @@
 services:
-  boilerplate-nest-database-mysql-migrate:
-    container_name: boilerplate-nest-database-mysql-migrate
-    image: mysql:8
+  boilerplate-nest-database-postgres-migrate:
+    container_name: boilerplate-nest-database-postgres-migrate
+    image: postgres:16-alpine
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-boilerplate_nest_migrate}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-boilerplate_nest_migrate}
     ports:
-      - '3307:3306'
+      - '5433:5432'
     volumes:
-      - boilerplate-mysql-migrate-data:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+      - boilerplate-postgres-migrate-data:/var/lib/postgresql/data
     networks:
       - boilerplate-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-boilerplate_nest_migrate}',
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
-      start_period: 20s
+      start_period: 10s
 
   boilerplate-nest-migrate:
     container_name: boilerplate-nest-migrate
@@ -34,14 +38,14 @@ services:
     volumes:
       - ../:/usr/src/app
     depends_on:
-      boilerplate-nest-database-mysql-migrate:
+      boilerplate-nest-database-postgres-migrate:
         condition: service_healthy
     networks:
       - boilerplate-network
     restart: 'no'
 
 volumes:
-  boilerplate-mysql-migrate-data:
+  boilerplate-postgres-migrate-data:
 
 networks:
   boilerplate-network:

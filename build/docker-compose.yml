@@ -11,6 +11,7 @@ services:
     ports:
       - ${PORT_BE:-3000}:3000
     environment:
+      PORT: 3000
       DATABASE_URL: ${DATABASE_URL_DEV}
       JWT_SECRET: ${JWT_SECRET}
       SUPER_ADMIN_PASSWORD_SEED: ${SUPER_ADMIN_PASSWORD_SEED}
@@ -20,30 +21,35 @@ services:
       - ../:/usr/src/app
       - /usr/src/app/node_modules
     depends_on:
-      - boilerplate-nest-database-mysql-dev
+      boilerplate-nest-database-postgres-dev:
+        condition: service_healthy
     networks:
       - boilerplate-network
     restart: unless-stopped
 
-  boilerplate-nest-database-mysql-dev:
-    container_name: boilerplate-nest-database-mysql-dev
-    image: mysql:8
+  boilerplate-nest-database-postgres-dev:
+    container_name: boilerplate-nest-database-postgres-dev
+    image: postgres:16-alpine
     ports:
-      - '3306:3306'
+      - '5432:5432'
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - boilerplate-mysql-dev-data:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+      - boilerplate-postgres-dev-data:/var/lib/postgresql/data
     networks:
       - boilerplate-network
     restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
 volumes:
-  boilerplate-mysql-dev-data:
+  boilerplate-postgres-dev-data:
 
 networks:
   boilerplate-network:

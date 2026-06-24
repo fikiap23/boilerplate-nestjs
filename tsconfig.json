@@ -12,8 +12,6 @@
     "baseUrl": "./",
     "paths": {
       "src/*": ["src/*"],
-      "helpers/*": ["helpers/*"],
-      "utils/*": ["utils/*"],
       "prisma/*": ["prisma/*"]
     },
     "incremental": true,

@@ -6,14 +6,14 @@ NestJS boilerplate with **Auth (JWT)** and **Admin (Prisma)** — template with 
 
 - **Auth**: Admin login, JWT (7 days), guards (JwtGuard, RoleGuard), Passport JWT strategy
 - **Admin**: CRUD for admins (create, list paginate, profile, update, delete). Roles: SUPERADMIN, ADMIN, EDITOR, MODERATOR. Status: ACTIVE, INACTIVE
-- **Prisma**: Single model `Admin`, MySQL, paginator, seed for one superadmin
+- **Prisma**: Single model `Admin`, PostgreSQL, paginator, seed for one superadmin
 - **Swagger**: `/docs` with HTTP basic auth
 - **Helpers**: formatResponse, errorHandler, validateUUID, SwaggerEndpoint decorator
 
 ## Requirements
 
 - Node.js 20+
-- MySQL 8 (local or Docker)
+- PostgreSQL 16 (local or Docker)
 - npm or yarn
 
 ## Setup (local)
@@ -58,7 +58,7 @@ cp build/.env.example .env
 ### Dev (local development in Docker)
 
 ```bash
-make up      # Start app + MySQL, follow logs
+make up      # Start app + PostgreSQL, follow logs
 make down    # Stop
 make logs    # Follow app logs
 make exec    # Shell into app container
@@ -67,7 +67,7 @@ make restart # Restart app and follow logs
 
 - **API**: http://localhost:3000  
 - **Swagger**: http://localhost:3000/docs (basic auth from `SWAGGER_USERNAME` / `SWAGGER_PASSWORD`)  
-- **MySQL**: localhost:3306 (user/password from `.env`)
+- **PostgreSQL**: localhost:5432 (user/password from `.env`)
 
 ### Production
 
@@ -75,7 +75,7 @@ make restart # Restart app and follow logs
 cp build/.env.production.example build/.env.production
 # Edit build/.env.production (DATABASE_URL, JWT_SECRET, etc.)
 
-make up-prod     # Build and start app + MySQL
+make up-prod     # Build and start app + PostgreSQL
 make down-prod   # Stop
 make logs-prod   # Follow app logs
 make exec-prod   # Shell into app container
@@ -84,7 +84,7 @@ make build-prod  # Build images only (no cache)
 
 ### Migration (create new migration files)
 
-Uses a separate MySQL container and creates a migration with `prisma migrate dev --create-only`:
+Uses a separate PostgreSQL container and creates a migration with `prisma migrate dev --create-only`:
 
 ```bash
 make up-migrate    # Start migrate DB + run migrate script
@@ -92,15 +92,15 @@ make down-migrate  # Stop
 make reset-migrate # Stop and remove migrate volume
 ```
 
-Env for migrate is in `build/.env.migrate` (defaults point at `boilerplate-nest-database-mysql-migrate`).
+Env for migrate is in `build/.env.migrate` (defaults point at `boilerplate-nest-database-postgres-migrate`).
 
 ### Environment variables (build/.env.example)
 
 | Variable | Description |
 |----------|-------------|
 | `PORT_BE` | Host port for app (default 3000) |
-| `DB_HOST`, `DB_PORT`, `MYSQL_*` | MySQL connection for dev |
-| `DATABASE_URL_DEV` | Full MySQL URL for dev (built from above) |
+| `DB_HOST`, `DB_PORT`, `POSTGRES_*` | PostgreSQL connection for dev |
+| `DATABASE_URL_DEV` | Full PostgreSQL URL for dev (built from above) |
 | `JWT_SECRET`, `SUPER_ADMIN_PASSWORD_SEED` | Auth |
 | `SWAGGER_USERNAME`, `SWAGGER_PASSWORD` | Swagger UI basic auth |
 

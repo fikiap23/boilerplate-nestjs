@@ -10,6 +10,7 @@ services:
       - '127.0.0.1:3000:3000'
     environment:
       NODE_ENV: production
+      PORT: 3000
       DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET: ${JWT_SECRET}
       SUPER_ADMIN_PASSWORD_SEED: ${SUPER_ADMIN_PASSWORD_SEED}
@@ -17,7 +18,7 @@ services:
       SWAGGER_PASSWORD: ${SWAGGER_PASSWORD}
       RUN_SEED: ${RUN_SEED:-0}
     depends_on:
-      boilerplate-nest-database-mysql-production:
+      boilerplate-nest-database-postgres-production:
         condition: service_healthy
     networks:
       - boilerplate-network
@@ -35,29 +36,27 @@ services:
       retries: 3
       start_period: 40s
 
-  boilerplate-nest-database-mysql-production:
-    container_name: boilerplate-nest-database-mysql-production
-    image: mysql:8
+  boilerplate-nest-database-postgres-production:
+    container_name: boilerplate-nest-database-postgres-production
+    image: postgres:16-alpine
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - boilerplate-mysql-production-data:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+      - boilerplate-postgres-production-data:/var/lib/postgresql/data
     networks:
       - boilerplate-network
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 20s
 
 volumes:
-  boilerplate-mysql-production-data:
+  boilerplate-postgres-production-data:
 
 networks:
   boilerplate-network:

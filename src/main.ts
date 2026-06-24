@@ -1,20 +1,22 @@
 import * as basicAuth from 'express-basic-auth';
 import * as bodyParser from 'body-parser';
 import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: true });
+  const configService = app.get(ConfigService);
 
   app.use(
     ['/docs', '/docs-json'],
     basicAuth({
       challenge: true,
       users: {
-        [process.env.SWAGGER_USERNAME || 'admin']:
-          process.env.SWAGGER_PASSWORD || 'admin',
+        [configService.get<string>('app.swaggerUsername')]:
+          configService.get<string>('app.swaggerPassword'),
       },
     }),
   );
@@ -47,7 +49,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('/docs', app, document);
 
-  const port = process.env.PORT || 3000;
+  const port = configService.get<number>('app.port');
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}`);
   console.log(`Swagger docs: http://localhost:${port}/docs`);
