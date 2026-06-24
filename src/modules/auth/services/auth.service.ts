@@ -54,6 +54,7 @@ export class AuthService {
 
     const admin = await this.adminRepository.getFirst({
       where: { email },
+      skipCache: true,
     });
 
     if (!admin) {
