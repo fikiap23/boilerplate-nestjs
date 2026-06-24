@@ -5,6 +5,7 @@ import { IPaginatedResult } from 'prisma/interfaces/paginated-result';
 import { PrismaService } from './prisma.service';
 import { PrismaModelDelegate } from './types/prisma-delegate.type';
 import { InferRepositoryPayload } from './types/infer-repository-payload.type';
+import { PrismaSelectPayload } from './types/prisma-select-payload.type';
 import { RedisService } from '../redis/redis.service';
 import {
   CacheMethod,
@@ -36,17 +37,16 @@ export function createPrismaRepository<
   TWhereInput,
   TOrderBy,
   TToPayload extends <T extends TSelect>(data: unknown) => unknown,
+  TRepoModel extends string = never,
 >(options: {
-  model?: string;
+  model?: TRepoModel;
   cache?: RepositoryCacheOptions;
   getDelegate: (client: PrismaClientLike) => PrismaModelDelegate;
   toPayload: TToPayload;
 }) {
-  type Payload<T extends TSelect> = InferRepositoryPayload<
-    TSelect,
-    T,
-    TToPayload
-  >;
+  type Payload<T extends TSelect> = [TRepoModel] extends [never]
+    ? InferRepositoryPayload<TSelect, T, TToPayload>
+    : PrismaSelectPayload<TRepoModel, T>;
 
   const cacheEnabled = options.cache?.enabled === true && !!options.model;
   const defaultTtl = options.cache?.ttl ?? 300;
@@ -456,6 +456,7 @@ export type PrismaRepositoryInstance<
   TWhereInput,
   TOrderBy,
   TToPayload extends <T extends TSelect>(data: unknown) => unknown,
+  TRepoModel extends string = never,
 > = InstanceType<
   ReturnType<
     typeof createPrismaRepository<
@@ -464,7 +465,8 @@ export type PrismaRepositoryInstance<
       TUpdateInput,
       TWhereInput,
       TOrderBy,
-      TToPayload
+      TToPayload,
+      TRepoModel
     >
   >
 >;

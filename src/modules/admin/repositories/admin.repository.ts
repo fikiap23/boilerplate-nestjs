@@ -18,7 +18,8 @@ export const AdminRepository = createPrismaRepository<
   Prisma.AdminUpdateInput,
   Prisma.AdminWhereInput,
   Prisma.AdminOrderByWithRelationInput,
-  AdminToPayload
+  AdminToPayload,
+  'admin'
 >({
   model: 'admin',
   cache: {
@@ -42,5 +43,6 @@ export type AdminRepository = PrismaRepositoryInstance<
   Prisma.AdminUpdateInput,
   Prisma.AdminWhereInput,
   Prisma.AdminOrderByWithRelationInput,
-  AdminToPayload
+  AdminToPayload,
+  'admin'
 >;
