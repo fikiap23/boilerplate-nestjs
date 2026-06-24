@@ -68,6 +68,7 @@ export class AdminService {
 
     return await this.adminRepository.getManyPaginate({
       where,
+      select: getAdminSelect('general'),
       orderBy: { createdAt: sort },
       page,
       limit,
