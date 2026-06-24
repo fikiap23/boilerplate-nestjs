@@ -6,17 +6,26 @@ import { PrismaService } from './prisma.service';
 import { PrismaModelDelegate } from './types/prisma-delegate.type';
 import { InferRepositoryPayload } from './types/infer-repository-payload.type';
 import { RedisService } from '../redis/redis.service';
-import { RepositoryCacheOptions } from '../redis/types/repository-cache-options.type';
+import {
+  CacheMethod,
+  InvalidateMode,
+  RepositoryCacheOptions,
+} from '../redis/types/repository-cache-options.type';
 import {
   buildEntityKey,
   buildQueryKey,
   entityIndexKey,
   queryIndexKey,
 } from '../redis/utils/cache-key.util';
+import { selectIncludesSensitiveField } from '../redis/utils/cache-guard.util';
+import { applyJitter } from '../redis/utils/ttl-jitter.util';
 
 const paginate: PaginateFunction = paginator({});
 
 const NULL_SENTINEL = '__NULL__';
+const STAMPEDE_LOCK_TTL = 10;
+const STAMPEDE_RETRY_MS = 50;
+const STAMPEDE_MAX_RETRIES = 3;
 
 type PrismaClientLike = PrismaService | Prisma.TransactionClient;
 
@@ -40,85 +49,173 @@ export function createPrismaRepository<
   >;
 
   const cacheEnabled = options.cache?.enabled === true && !!options.model;
-  const cacheTtl = options.cache?.ttl ?? 300;
-  const cacheNullTtl = options.cache?.nullTtl ?? 60;
+  const defaultTtl = options.cache?.ttl ?? 300;
+  const defaultNullTtl = options.cache?.nullTtl ?? 60;
   const modelName = options.model ?? '';
+  const sensitiveFields = options.cache?.sensitiveFields ?? ['password'];
+  const methodConfig = options.cache?.methods ?? {};
 
   const getModel = (prisma: PrismaService, tx?: Prisma.TransactionClient) =>
     options.getDelegate(tx ?? prisma);
 
-  // --- cache helpers (closure-scoped to avoid TS4094 on anonymous class) ---
+  // --- resolve per-method TTL ---
+
+  function getMethodTtl(method: CacheMethod): number {
+    return methodConfig[method]?.ttl ?? defaultTtl;
+  }
+
+  function isMethodEnabled(method: CacheMethod): boolean {
+    return methodConfig[method]?.enabled !== false;
+  }
+
+  // --- cache eligibility ---
 
   function canCache(redis?: RedisService): redis is RedisService {
-    return cacheEnabled && !!redis;
+    return cacheEnabled && !!redis && redis.isReady();
+  }
+
+  function shouldCache(
+    method: CacheMethod,
+    tx?: Prisma.TransactionClient,
+    skipCache?: boolean,
+    select?: object,
+  ): boolean {
+    if (tx || skipCache) return false;
+    if (!isMethodEnabled(method)) return false;
+    if (selectIncludesSensitiveField(select, sensitiveFields)) return false;
+    return true;
   }
 
   function getPrefix(redis: RedisService): string {
     return redis.getPrefix();
   }
 
+  // --- stampede lock ---
+
+  async function acquireLock(redis: RedisService, cacheKey: string): Promise<boolean> {
+    return redis.safeSetNx(`${cacheKey}:lock`, STAMPEDE_LOCK_TTL);
+  }
+
+  async function releaseLock(redis: RedisService, cacheKey: string): Promise<void> {
+    await redis.safeDel(`${cacheKey}:lock`);
+  }
+
+  function sleep(ms: number): Promise<void> {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  // --- cache get with stampede protection ---
+
   async function cacheGetEntity<T extends TSelect>(
     redis: RedisService,
     id: string,
-    method: string,
+    method: CacheMethod,
     select?: T,
   ): Promise<{ hit: true; data: Payload<T> | null } | { hit: false }> {
     const key = buildEntityKey({ prefix: getPrefix(redis), model: modelName, id, method, select });
-    const raw = await redis.get<unknown>(key);
-    if (raw === null) return { hit: false };
-    if (raw === NULL_SENTINEL) return { hit: true, data: null };
-    return { hit: true, data: options.toPayload<T>(raw) as Payload<T> };
+    const raw = await redis.safeGet<unknown>(key);
+    if (raw !== null) {
+      if (raw === NULL_SENTINEL) return { hit: true, data: null };
+      return { hit: true, data: options.toPayload<T>(raw) as Payload<T> };
+    }
+    // stampede: try lock, if someone else holds it retry GET a few times
+    const locked = await acquireLock(redis, key);
+    if (!locked) {
+      for (let i = 0; i < STAMPEDE_MAX_RETRIES; i++) {
+        await sleep(STAMPEDE_RETRY_MS);
+        const retry = await redis.safeGet<unknown>(key);
+        if (retry !== null) {
+          if (retry === NULL_SENTINEL) return { hit: true, data: null };
+          return { hit: true, data: options.toPayload<T>(retry) as Payload<T> };
+        }
+      }
+    }
+    return { hit: false };
   }
 
   async function cacheSetEntity<T extends TSelect>(
     redis: RedisService,
     id: string,
-    method: string,
+    method: CacheMethod,
     result: unknown,
     select?: T,
   ): Promise<void> {
     const prefix = getPrefix(redis);
     const key = buildEntityKey({ prefix, model: modelName, id, method, select });
     const isNull = result === null || result === undefined;
-    await redis.set(key, isNull ? NULL_SENTINEL : result, isNull ? cacheNullTtl : cacheTtl);
-    await redis.sadd(entityIndexKey(prefix, modelName, id), key);
+    const ttl = applyJitter(isNull ? defaultNullTtl : getMethodTtl(method));
+    const idxKey = entityIndexKey(prefix, modelName, id);
+    await redis.safeSetWithIndex(key, isNull ? NULL_SENTINEL : result, ttl, idxKey);
+    await releaseLock(redis, key);
   }
 
   async function cacheGetQuery<TResult>(
     redis: RedisService,
-    method: string,
+    method: CacheMethod,
     params: Record<string, unknown>,
   ): Promise<{ hit: true; data: TResult | null } | { hit: false }> {
     const key = buildQueryKey({ prefix: getPrefix(redis), model: modelName, method, params });
-    const raw = await redis.get<typeof NULL_SENTINEL | TResult>(key);
-    if (raw === null) return { hit: false };
-    if (raw === NULL_SENTINEL) return { hit: true, data: null };
-    return { hit: true, data: raw };
-  }
-
-  function useCache(tx?: Prisma.TransactionClient, skipCache?: boolean): boolean {
-    return !tx && !skipCache;
+    const raw = await redis.safeGet<typeof NULL_SENTINEL | TResult>(key);
+    if (raw !== null) {
+      if (raw === NULL_SENTINEL) return { hit: true, data: null };
+      return { hit: true, data: raw };
+    }
+    const locked = await acquireLock(redis, key);
+    if (!locked) {
+      for (let i = 0; i < STAMPEDE_MAX_RETRIES; i++) {
+        await sleep(STAMPEDE_RETRY_MS);
+        const retry = await redis.safeGet<typeof NULL_SENTINEL | TResult>(key);
+        if (retry !== null) {
+          if (retry === NULL_SENTINEL) return { hit: true, data: null };
+          return { hit: true, data: retry };
+        }
+      }
+    }
+    return { hit: false };
   }
 
   async function cacheSetQuery(
     redis: RedisService,
-    method: string,
+    method: CacheMethod,
     params: Record<string, unknown>,
     result: unknown,
   ): Promise<void> {
     const prefix = getPrefix(redis);
     const key = buildQueryKey({ prefix, model: modelName, method, params });
     const isNull = result === null || result === undefined;
-    await redis.set(key, isNull ? NULL_SENTINEL : result, isNull ? cacheNullTtl : cacheTtl);
-    await redis.sadd(queryIndexKey(prefix, modelName), key);
+    const ttl = applyJitter(isNull ? defaultNullTtl : getMethodTtl(method));
+    const idxKey = queryIndexKey(prefix, modelName);
+    await redis.safeSetWithIndex(key, isNull ? NULL_SENTINEL : result, ttl, idxKey);
+    await releaseLock(redis, key);
   }
 
   async function doInvalidateEntity(redis: RedisService, id: string): Promise<void> {
-    await redis.invalidateByIndex(entityIndexKey(getPrefix(redis), modelName, id));
+    await redis.safeInvalidateByIndex(entityIndexKey(getPrefix(redis), modelName, id));
   }
 
   async function doInvalidateQueries(redis: RedisService): Promise<void> {
-    await redis.invalidateByIndex(queryIndexKey(getPrefix(redis), modelName));
+    await redis.safeInvalidateByIndex(queryIndexKey(getPrefix(redis), modelName));
+  }
+
+  async function runInvalidation(
+    redis: RedisService,
+    mode: InvalidateMode,
+    id?: string,
+  ): Promise<void> {
+    switch (mode) {
+      case 'all':
+        if (id) await doInvalidateEntity(redis, id);
+        await doInvalidateQueries(redis);
+        break;
+      case 'entity':
+        if (id) await doInvalidateEntity(redis, id);
+        break;
+      case 'queries':
+        await doInvalidateQueries(redis);
+        break;
+      case 'none':
+        break;
+    }
   }
 
   @Injectable()
@@ -130,7 +227,6 @@ export function createPrismaRepository<
 
     /**
      * Manual invalidation for use after prisma.execTx() completes.
-     * Call with an id to invalidate entity + query caches, or without to invalidate only queries.
      */
     async invalidateCache(opts?: { id?: string }): Promise<void> {
       if (!canCache(this.redis)) return;
@@ -142,13 +238,15 @@ export function createPrismaRepository<
       tx,
       data,
       select,
+      invalidate = 'queries',
     }: {
       tx?: Prisma.TransactionClient;
       data: TCreateInput;
       select?: T;
+      invalidate?: InvalidateMode;
     }): Promise<Payload<T>> {
       const result = await getModel(this.prisma, tx).create({ data, select });
-      if (!tx && canCache(this.redis)) await doInvalidateQueries(this.redis);
+      if (!tx && canCache(this.redis)) await runInvalidation(this.redis, invalidate);
       return options.toPayload<T>(result) as Payload<T>;
     }
 
@@ -163,7 +261,7 @@ export function createPrismaRepository<
       select?: T;
       skipCache?: boolean;
     }): Promise<Payload<T>> {
-      if (useCache(tx, skipCache) && canCache(this.redis)) {
+      if (shouldCache('getById', tx, skipCache, select) && canCache(this.redis)) {
         const cached = await cacheGetEntity<T>(this.redis, id, 'getById', select);
         if (cached.hit) return cached.data as Payload<T>;
       }
@@ -171,7 +269,7 @@ export function createPrismaRepository<
         where: { id },
         select,
       });
-      if (useCache(tx, skipCache) && canCache(this.redis)) {
+      if (shouldCache('getById', tx, skipCache, select) && canCache(this.redis)) {
         await cacheSetEntity(this.redis, id, 'getById', result, select);
       }
       return options.toPayload<T>(result) as Payload<T>;
@@ -188,7 +286,7 @@ export function createPrismaRepository<
       select?: T;
       skipCache?: boolean;
     }): Promise<Payload<T>> {
-      if (useCache(tx, skipCache) && canCache(this.redis)) {
+      if (shouldCache('getThrowById', tx, skipCache, select) && canCache(this.redis)) {
         const cached = await cacheGetEntity<T>(this.redis, id, 'getThrowById', select);
         if (cached.hit) {
           if (cached.data === null) {
@@ -201,7 +299,7 @@ export function createPrismaRepository<
         where: { id },
         select,
       });
-      if (useCache(tx, skipCache) && canCache(this.redis)) {
+      if (shouldCache('getThrowById', tx, skipCache, select) && canCache(this.redis)) {
         await cacheSetEntity(this.redis, id, 'getThrowById', result, select);
       }
       return options.toPayload<T>(result) as Payload<T>;
@@ -219,12 +317,12 @@ export function createPrismaRepository<
       skipCache?: boolean;
     }): Promise<Payload<T>> {
       const params = { where, select } as Record<string, unknown>;
-      if (useCache(tx, skipCache) && canCache(this.redis)) {
+      if (shouldCache('getFirst', tx, skipCache, select) && canCache(this.redis)) {
         const cached = await cacheGetQuery<unknown>(this.redis, 'getFirst', params);
         if (cached.hit) return options.toPayload<T>(cached.data) as Payload<T>;
       }
       const result = await getModel(this.prisma, tx).findFirst({ where, select });
-      if (useCache(tx, skipCache) && canCache(this.redis)) {
+      if (shouldCache('getFirst', tx, skipCache, select) && canCache(this.redis)) {
         await cacheSetQuery(this.redis, 'getFirst', params, result);
       }
       return options.toPayload<T>(result) as Payload<T>;
@@ -248,7 +346,7 @@ export function createPrismaRepository<
       skipCache?: boolean;
     }): Promise<Payload<T>[]> {
       const params = { where, select, orderBy, take, skip } as Record<string, unknown>;
-      if (useCache(tx, skipCache) && canCache(this.redis)) {
+      if (shouldCache('getMany', tx, skipCache, select) && canCache(this.redis)) {
         const cached = await cacheGetQuery<unknown[]>(this.redis, 'getMany', params);
         if (cached.hit) return cached.data!.map((item) => options.toPayload<T>(item) as Payload<T>);
       }
@@ -259,7 +357,7 @@ export function createPrismaRepository<
         take,
         skip,
       });
-      if (useCache(tx, skipCache) && canCache(this.redis)) {
+      if (shouldCache('getMany', tx, skipCache, select) && canCache(this.redis)) {
         await cacheSetQuery(this.redis, 'getMany', params, results);
       }
       return results.map((item) => options.toPayload<T>(item) as Payload<T>);
@@ -283,7 +381,7 @@ export function createPrismaRepository<
       skipCache?: boolean;
     }): Promise<IPaginatedResult<Payload<T>>> {
       const params = { where, select, orderBy, page, limit } as Record<string, unknown>;
-      if (useCache(tx, skipCache) && canCache(this.redis)) {
+      if (shouldCache('getManyPaginate', tx, skipCache, select) && canCache(this.redis)) {
         const cached = await cacheGetQuery<IPaginatedResult<Payload<T>>>(
           this.redis,
           'getManyPaginate',
@@ -296,7 +394,7 @@ export function createPrismaRepository<
         { where, select, orderBy },
         { page, perPage: limit },
       )) as IPaginatedResult<Payload<T>>;
-      if (useCache(tx, skipCache) && canCache(this.redis)) {
+      if (shouldCache('getManyPaginate', tx, skipCache, select) && canCache(this.redis)) {
         await cacheSetQuery(this.redis, 'getManyPaginate', params, result);
       }
       return result;
@@ -307,11 +405,13 @@ export function createPrismaRepository<
       id,
       data,
       select,
+      invalidate = 'all',
     }: {
       tx?: Prisma.TransactionClient;
       id: string;
       data: TUpdateInput;
       select?: T;
+      invalidate?: InvalidateMode;
     }): Promise<Payload<T>> {
       const result = await getModel(this.prisma, tx).update({
         where: { id },
@@ -319,8 +419,7 @@ export function createPrismaRepository<
         select,
       });
       if (!tx && canCache(this.redis)) {
-        await doInvalidateEntity(this.redis, id);
-        await doInvalidateQueries(this.redis);
+        await runInvalidation(this.redis, invalidate, id);
       }
       return options.toPayload<T>(result) as Payload<T>;
     }
@@ -329,18 +428,19 @@ export function createPrismaRepository<
       tx,
       id,
       select,
+      invalidate = 'all',
     }: {
       tx?: Prisma.TransactionClient;
       id: string;
       select?: T;
+      invalidate?: InvalidateMode;
     }): Promise<Payload<T>> {
       const result = await getModel(this.prisma, tx).delete({
         where: { id },
         select,
       });
       if (!tx && canCache(this.redis)) {
-        await doInvalidateEntity(this.redis, id);
-        await doInvalidateQueries(this.redis);
+        await runInvalidation(this.redis, invalidate, id);
       }
       return options.toPayload<T>(result) as Payload<T>;
     }

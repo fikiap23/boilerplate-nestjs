@@ -30,6 +30,7 @@ export class AdminService {
     const byEmail = await this.adminRepository.getFirst({
       where: { email: dto.email },
       select: getAdminSelect('minimal'),
+      skipCache: true,
     });
 
     if (byEmail) {
@@ -95,6 +96,7 @@ export class AdminService {
           NOT: { id: current.id },
         },
         select: getAdminSelect('minimal'),
+        skipCache: true,
       });
 
       if (byEmail) {
@@ -126,7 +128,7 @@ export class AdminService {
   async handleUpdateProfile(sub: string, dto: UpdateProfileAdminDto) {
     const current = await this.adminRepository.getThrowById({
       id: sub,
-      select: getAdminSelect('general'),
+      select: getAdminSelect('withPassword'),
     });
 
     if (dto.email && dto.email !== current.email) {
@@ -136,6 +138,7 @@ export class AdminService {
           NOT: { id: current.id },
         },
         select: getAdminSelect('minimal'),
+        skipCache: true,
       });
 
       if (byEmail) {

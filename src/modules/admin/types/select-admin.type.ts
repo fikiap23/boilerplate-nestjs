@@ -15,6 +15,16 @@ export const adminSelectPresets = {
     id: true,
     name: true,
     email: true,
+    role: true,
+    status: true,
+    createdAt: true,
+    lastLoginAt: true,
+  } satisfies Prisma.AdminSelect,
+
+  withPassword: {
+    id: true,
+    name: true,
+    email: true,
     password: true,
     role: true,
     status: true,

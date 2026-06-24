@@ -21,7 +21,16 @@ export const AdminRepository = createPrismaRepository<
   AdminToPayload
 >({
   model: 'admin',
-  cache: { enabled: true, ttl: 300, nullTtl: 60 },
+  cache: {
+    enabled: true,
+    ttl: 300,
+    nullTtl: 60,
+    sensitiveFields: ['password'],
+    methods: {
+      getManyPaginate: { ttl: 60 },
+      getMany: { ttl: 60 },
+    },
+  },
   getDelegate: (client) => client.admin,
   toPayload: <T extends Prisma.AdminSelect>(data: unknown) =>
     data as AdminPayload<T>,
