@@ -72,6 +72,22 @@ services:
       retries: 10
       start_period: 5s
 
+  boilerplate-nest-redis-commander-dev:
+    container_name: boilerplate-nest-redis-commander-dev
+    image: rediscommander/redis-commander:latest
+    ports:
+      - '${PORT_REDIS_COMMANDER:-8081}:8081'
+    environment:
+      REDIS_HOSTS: local:${REDIS_HOST:-boilerplate-nest-redis-dev}:${REDIS_PORT:-6379}
+      HTTP_USER: ${REDIS_COMMANDER_HTTP_USER:-admin}
+      HTTP_PASSWORD: ${REDIS_COMMANDER_HTTP_PASSWORD:-admin}
+    depends_on:
+      boilerplate-nest-redis-dev:
+        condition: service_healthy
+    networks:
+      - boilerplate-network
+    restart: unless-stopped
+
 volumes:
   boilerplate-postgres-dev-data:
   boilerplate-redis-dev-data:
