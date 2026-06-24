@@ -23,7 +23,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       id: payload.sub,
       select: getAdminSelect('minimal'),
     });
-    if (userAdmin) return true;
+    if (userAdmin) return payload;
     return false;
   }
 }

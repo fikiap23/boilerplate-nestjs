@@ -4,7 +4,6 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
   HttpStatus,
   Param,
   Patch,
@@ -15,14 +14,14 @@ import {
 } from '@nestjs/common';
 
 import { JwtGuard, RoleGuard } from 'src/common/guards';
-import { Roles } from 'src/common/decorators';
-import { JwtHelper } from 'src/common/utils/jwt.helper';
+import { CurrentUser, Roles } from 'src/common/decorators';
 
 import { formatResponse } from 'src/common/utils/http.helper';
 import { errorHandler } from 'src/common/utils/validation.helper';
 
 import { AdminService } from '../services/admin.service';
 import { EAdminRole } from 'src/common/enums/admin.enum';
+import { IPayloadJWT } from 'src/shared/interfaces/auth.interface';
 
 import {
   CreateAdminDto,
@@ -39,10 +38,7 @@ import { validateUUID } from 'src/common/utils/helper.common';
 @ApiTags('Admin Management')
 @Controller('admin')
 export class AdminController {
-  constructor(
-    private readonly adminService: AdminService,
-    private readonly jwtHelper: JwtHelper,
-  ) {}
+  constructor(private readonly adminService: AdminService) {}
 
   @UseGuards(JwtGuard, RoleGuard)
   @Roles(EAdminRole.SUPERADMIN)
@@ -53,13 +49,12 @@ export class AdminController {
     success: { status: 201, description: 'Created successfully' },
   })
   async create(
+    @CurrentUser() user: IPayloadJWT,
     @Body() dto: CreateAdminDto,
-    @Headers('authorization') authorization: string,
     @Res() res: Response,
   ) {
     try {
-      const { sub } = this.jwtHelper.decodeToken(authorization);
-      const result = await this.adminService.handleCreate(sub, dto);
+      const result = await this.adminService.handleCreate(user.sub, dto);
       return formatResponse(res, HttpStatus.CREATED, result);
     } catch (error) {
       return errorHandler(res, error);
@@ -87,13 +82,9 @@ export class AdminController {
   @SwaggerEndpoint({
     summary: 'Get current admin profile',
   })
-  async getProfile(
-    @Headers('authorization') authorization: string,
-    @Res() res: Response,
-  ) {
+  async getProfile(@CurrentUser() user: IPayloadJWT, @Res() res: Response) {
     try {
-      const { sub } = this.jwtHelper.decodeToken(authorization);
-      const result = await this.adminService.handleGetById(sub);
+      const result = await this.adminService.handleGetById(user.sub);
       return formatResponse(res, HttpStatus.OK, result);
     } catch (error) {
       return errorHandler(res, error);
@@ -124,13 +115,12 @@ export class AdminController {
     body: UpdateProfileAdminDto,
   })
   async updateProfile(
-    @Headers('authorization') authorization: string,
+    @CurrentUser() user: IPayloadJWT,
     @Body() dto: UpdateProfileAdminDto,
     @Res() res: Response,
   ) {
     try {
-      const { sub } = this.jwtHelper.decodeToken(authorization);
-      await this.adminService.handleUpdateProfile(sub, dto);
+      await this.adminService.handleUpdateProfile(user.sub, dto);
       return formatResponse(res, HttpStatus.OK, null);
     } catch (error) {
       return errorHandler(res, error);
@@ -146,16 +136,15 @@ export class AdminController {
     params: [{ name: 'id', description: 'Admin UUID' }],
   })
   async updateById(
+    @CurrentUser() user: IPayloadJWT,
     @Param('id') id: string,
     @Body() dto: UpdateAdminDto,
-    @Headers('authorization') authorization: string,
     @Res() res: Response,
   ) {
     try {
       validateUUID(id, 'admin');
 
-      const { sub } = this.jwtHelper.decodeToken(authorization);
-      await this.adminService.handleUpdateById(sub, id, dto);
+      await this.adminService.handleUpdateById(user.sub, id, dto);
       return formatResponse(res, HttpStatus.OK, null);
     } catch (error) {
       return errorHandler(res, error);
@@ -170,15 +159,14 @@ export class AdminController {
     params: [{ name: 'id', description: 'Admin UUID' }],
   })
   async deleteById(
+    @CurrentUser() user: IPayloadJWT,
     @Param('id') id: string,
-    @Headers('authorization') authorization: string,
     @Res() res: Response,
   ) {
     try {
       validateUUID(id, 'admin');
 
-      const { sub } = this.jwtHelper.decodeToken(authorization);
-      await this.adminService.handleDeleteById(sub, id);
+      await this.adminService.handleDeleteById(user.sub, id);
       return formatResponse(res, HttpStatus.OK, null);
     } catch (error) {
       return errorHandler(res, error);
