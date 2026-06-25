@@ -28,6 +28,7 @@ import {
   assertLockPrerequisites,
   queryRowForUpdate,
 } from './utils/row-lock.util';
+import { validateLockConfig } from './utils/validate-lock-config.util';
 
 const paginate: PaginateFunction = paginator({});
 
@@ -64,6 +65,10 @@ export function createPrismaRepository<
   const sensitiveFields = options.cache?.sensitiveFields ?? ['password'];
   const methodConfig = options.cache?.methods ?? {};
   const lockConfig = options.lock;
+
+  if (lockConfig) {
+    validateLockConfig(lockConfig);
+  }
 
   const getModel = (prisma: PrismaService, tx?: Prisma.TransactionClient) =>
     options.getDelegate(tx ?? prisma);

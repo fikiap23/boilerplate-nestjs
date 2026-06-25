@@ -314,7 +314,29 @@ Opt-in pessimistic lock via `SELECT ... FOR UPDATE` untuk mencegah race conditio
 
 ### Setup repository
 
-Tambahkan `lock` config di `createPrismaRepository` (lihat template repository di atas). Field `columns` wajib untuk field Prisma yang punya `@map`.
+Tambahkan `lock` config di `createPrismaRepository` (lihat template repository di atas). Field `columns` wajib untuk **semua** field Prisma yang punya `@map` — divalidasi otomatis saat app startup lewat Prisma DMMF (`validateLockConfig`). Kalau ada field `@map` yang belum masuk `columns`, factory throw error dan app tidak jalan.
+
+```typescript
+lock: {
+  tableName: 'order',           // @@map di schema
+  columns: { createdAt: 'created_at' }, // hanya field dengan @map
+},
+```
+
+### Validasi startup
+
+Saat `createPrismaRepository` dipanggil dengan `lock`, config dicek ke `Prisma.dmmf`:
+
+- `tableName` harus match model (`@@map`)
+- Setiap field `@map` wajib ada di `columns` dengan nama DB yang benar
+- Key di `columns` yang tidak ada di model → error
+
+Contoh error jika lupa `lastLoginAt`:
+
+```
+Row lock config invalid for table "admin" (model Admin):
+  - missing lock.columns["lastLoginAt"] (Prisma @map("last_login_at"))
+```
 
 ### Pemakaian
 
@@ -472,6 +494,7 @@ Gunakan file ini sebagai acuan saat generate kode baru:
 | Full module | `src/modules/admin/` |
 | Repository factory | `src/infrastructure/prisma/create-prisma.repository.ts` |
 | Row lock util | `src/infrastructure/prisma/utils/row-lock.util.ts` |
+| Lock config validation | `src/infrastructure/prisma/utils/validate-lock-config.util.ts` |
 | Admin repository | `src/modules/admin/repositories/admin.repository.ts` |
 | Service | `src/modules/admin/services/admin.service.ts` |
 | Controller | `src/modules/admin/controllers/admin.controller.ts` |

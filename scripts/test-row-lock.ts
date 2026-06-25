@@ -10,7 +10,9 @@ import {
   queryRowForUpdate,
   selectToDbColumns,
 } from 'src/infrastructure/prisma/utils/row-lock.util';
+import { validateLockConfig } from 'src/infrastructure/prisma/utils/validate-lock-config.util';
 import { getAdminSelect } from 'src/modules/admin/types/select-admin.type';
+import 'src/modules/admin/repositories/admin.repository';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -77,6 +79,60 @@ async function testUnitHelpers() {
       'assertLockPrerequisites requires tx',
     );
   }
+}
+
+function testValidateLockConfig() {
+  console.log('\n--- Unit: validateLockConfig (DMMF) ---');
+
+  validateLockConfig(lockConfig);
+  assert(true, 'admin lock config passes DMMF validation');
+
+  let threw = false;
+  try {
+    validateLockConfig({
+      tableName: 'admin',
+      columns: { createdAt: 'created_at' },
+    });
+  } catch (e) {
+    threw = (e as Error).message.includes('lastLoginAt');
+  }
+  assert(threw, 'missing @map field in columns throws');
+
+  threw = false;
+  try {
+    validateLockConfig({
+      tableName: 'admin',
+      columns: { createdAt: 'wrong_col', lastLoginAt: 'last_login_at' },
+    });
+  } catch (e) {
+    threw = (e as Error).message.includes('createdAt');
+  }
+  assert(threw, 'wrong db column name throws');
+
+  threw = false;
+  try {
+    validateLockConfig({ tableName: 'nonexistent_table', columns: {} });
+  } catch (e) {
+    threw = (e as Error).message.includes('no Prisma model');
+  }
+  assert(threw, 'unknown tableName throws');
+
+  threw = false;
+  try {
+    validateLockConfig({
+      tableName: 'admin',
+      columns: {
+        createdAt: 'created_at',
+        lastLoginAt: 'last_login_at',
+        ghostField: 'ghost',
+      },
+    });
+  } catch (e) {
+    threw = (e as Error).message.includes('ghostField');
+  }
+  assert(threw, 'unknown column key throws');
+
+  assert(true, 'AdminRepository factory init validated lock config');
 }
 
 async function testLockedReadReturnsRow() {
@@ -204,6 +260,7 @@ async function main() {
   console.log('DATABASE_URL:', DATABASE_URL.replace(/:[^:@]+@/, ':***@'));
 
   await testUnitHelpers();
+  testValidateLockConfig();
   await testLockedReadReturnsRow();
   await testConcurrentLockBlocks();
   await testNowaitFailsWhenLocked();
