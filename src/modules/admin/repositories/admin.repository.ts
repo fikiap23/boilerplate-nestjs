@@ -22,6 +22,10 @@ export const AdminRepository = createPrismaRepository<
   'admin'
 >({
   model: 'admin',
+  lock: {
+    tableName: 'admin',
+    columns: { createdAt: 'created_at', lastLoginAt: 'last_login_at' },
+  },
   cache: {
     enabled: true,
     ttl: 300,

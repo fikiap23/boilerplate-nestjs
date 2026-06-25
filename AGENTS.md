@@ -95,6 +95,10 @@ export const FeatureRepository = createPrismaRepository<
   FeatureToPayload
 >({
   model: 'feature',
+  lock: {
+    tableName: 'feature', // @@map value dari schema.prisma
+    columns: { createdAt: 'created_at' }, // field dengan @map
+  },
   cache: {
     enabled: true,
     ttl: 300,
@@ -294,10 +298,74 @@ Factory di `src/infrastructure/prisma/create-prisma.repository.ts` menghasilkan 
 | `deleteById` | `.delete` | invalidate (default `all`) |
 | `invalidateCache` | — | manual, untuk post-tx |
 
-Opsi read: `tx?`, `select?`, `skipCache?`.
+Opsi read: `tx?`, `select?`, `skipCache?`, `lock?` (hanya `getById` / `getThrowById`).
 Opsi write: `tx?`, `invalidate?: 'all' | 'entity' | 'queries' | 'none'`.
 
 Semua method support `tx` untuk transaksi — cache otomatis di-skip saat `tx` ada.
+
+## Row Level Lock (PostgreSQL)
+
+Opt-in pessimistic lock via `SELECT ... FOR UPDATE` untuk mencegah race condition pada pola **read-modify-write** (mis. update status order).
+
+### Kapan pakai
+
+- Dua request concurrent membaca entity yang sama, lalu keduanya melakukan update berdasarkan state lama.
+- **Bukan** untuk uniqueness check (create duplicate) — gunakan unique constraint DB + handle `P2002`.
+
+### Setup repository
+
+Tambahkan `lock` config di `createPrismaRepository` (lihat template repository di atas). Field `columns` wajib untuk field Prisma yang punya `@map`.
+
+### Pemakaian
+
+```typescript
+await this.prisma.execTx(
+  async (tx) => {
+    const order = await this.orderRepository.getThrowById({
+      tx,
+      id: orderId,
+      select: getOrderSelect('general'),
+      lock: { mode: 'noKeyUpdate' },
+    });
+
+    if (order.status !== 'PENDING') {
+      throw new CustomError({ statusCode: 409, message: 'Order already processed' });
+    }
+
+    await this.orderRepository.updateById({
+      tx,
+      id: orderId,
+      data: { status: 'PROCESSING' },
+      invalidate: 'none',
+    });
+  },
+  async () => {
+    await this.orderRepository.invalidateCache({ id: orderId });
+  },
+);
+```
+
+### Aturan
+
+| Rule | Alasan |
+|------|--------|
+| `lock` **wajib** dengan `tx` | Lock dilepas saat transaksi commit/rollback |
+| `lock` otomatis bypass cache | Cache tidak kompatibel dengan row lock |
+| Repository harus punya `lock.tableName` | Raw SQL butuh nama tabel mapped |
+| Scope v1: `getById`, `getThrowById` saja | `getFirst`/`getMany` butuh SQL builder terpisah |
+
+### Lock modes
+
+| `mode` | SQL | Use case |
+|--------|-----|----------|
+| `noKeyUpdate` (default) | `FOR NO KEY UPDATE` | Update field non-key (status, qty) |
+| `update` | `FOR UPDATE` | Lock penuh termasuk foreign key |
+| `share` | `FOR SHARE` | Read-only lock dalam tx |
+| `keyShare` | `FOR KEY SHARE` | Lock paling ringan |
+
+Opsi tambahan: `nowait: true` (gagal langsung jika row terkunci), `skipLocked: true` (skip row terkunci). Keduanya mutually exclusive.
+
+Error PG `55P03` (lock not available) dari `nowait` — handle di service layer (retry atau 409).
 
 ## Cache Rules (Ringkasan)
 
@@ -392,6 +460,7 @@ await this.prisma.execTx(
 - [ ] Service: handle* naming + CustomError untuk business error
 - [ ] DTO: class-validator + @ApiProperty
 - [ ] Module: register provider + export jika dipakai modul lain
+- [ ] `lock` + `tx` pada read-modify-write yang rentan race condition
 - [ ] `npx tsc --noEmit` lolos tanpa error
 
 ## Reference Files
@@ -401,12 +470,13 @@ Gunakan file ini sebagai acuan saat generate kode baru:
 | Pattern | File |
 |---------|------|
 | Full module | `src/modules/admin/` |
-| Repository factory | `src/modules/admin/repositories/admin.repository.ts` |
+| Repository factory | `src/infrastructure/prisma/create-prisma.repository.ts` |
+| Row lock util | `src/infrastructure/prisma/utils/row-lock.util.ts` |
+| Admin repository | `src/modules/admin/repositories/admin.repository.ts` |
 | Service | `src/modules/admin/services/admin.service.ts` |
 | Controller | `src/modules/admin/controllers/admin.controller.ts` |
 | Select presets | `src/modules/admin/types/select-admin.type.ts` |
 | Where builder | `src/modules/admin/types/where-admin.type.ts` |
 | DTO | `src/modules/admin/dto/admin.dto.ts` |
 | Auth service | `src/modules/auth/services/auth.service.ts` |
-| Cache factory | `src/infrastructure/prisma/create-prisma.repository.ts` |
 | Cache docs | `docs/CACHE.md` |

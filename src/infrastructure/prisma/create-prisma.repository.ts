@@ -20,6 +20,14 @@ import {
 } from '../redis/utils/cache-key.util';
 import { selectIncludesSensitiveField } from '../redis/utils/cache-guard.util';
 import { applyJitter } from '../redis/utils/ttl-jitter.util';
+import {
+  RepositoryLockConfig,
+  RowLockOptions,
+} from './types/row-lock-options.type';
+import {
+  assertLockPrerequisites,
+  queryRowForUpdate,
+} from './utils/row-lock.util';
 
 const paginate: PaginateFunction = paginator({});
 
@@ -41,6 +49,7 @@ export function createPrismaRepository<
 >(options: {
   model?: TRepoModel;
   cache?: RepositoryCacheOptions;
+  lock?: RepositoryLockConfig;
   getDelegate: (client: PrismaClientLike) => PrismaModelDelegate;
   toPayload: TToPayload;
 }) {
@@ -54,6 +63,7 @@ export function createPrismaRepository<
   const modelName = options.model ?? '';
   const sensitiveFields = options.cache?.sensitiveFields ?? ['password'];
   const methodConfig = options.cache?.methods ?? {};
+  const lockConfig = options.lock;
 
   const getModel = (prisma: PrismaService, tx?: Prisma.TransactionClient) =>
     options.getDelegate(tx ?? prisma);
@@ -255,12 +265,24 @@ export function createPrismaRepository<
       id,
       select,
       skipCache,
+      lock,
     }: {
       tx?: Prisma.TransactionClient;
       id: string;
       select?: T;
       skipCache?: boolean;
+      lock?: RowLockOptions;
     }): Promise<Payload<T>> {
+      if (lock) {
+        assertLockPrerequisites(tx, lockConfig);
+        const result = await queryRowForUpdate(tx, lockConfig, {
+          id,
+          select,
+          lock,
+        });
+        return options.toPayload<T>(result) as Payload<T>;
+      }
+
       if (shouldCache('getById', tx, skipCache, select) && canCache(this.redis)) {
         const cached = await cacheGetEntity<T>(this.redis, id, 'getById', select);
         if (cached.hit) return cached.data as Payload<T>;
@@ -280,12 +302,30 @@ export function createPrismaRepository<
       id,
       select,
       skipCache,
+      lock,
     }: {
       tx?: Prisma.TransactionClient;
       id: string;
       select?: T;
       skipCache?: boolean;
+      lock?: RowLockOptions;
     }): Promise<Payload<T>> {
+      if (lock) {
+        assertLockPrerequisites(tx, lockConfig);
+        const result = await queryRowForUpdate(tx, lockConfig, {
+          id,
+          select,
+          lock,
+        });
+        if (result === null) {
+          await getModel(this.prisma, tx).findUniqueOrThrow({
+            where: { id },
+            select,
+          });
+        }
+        return options.toPayload<T>(result) as Payload<T>;
+      }
+
       if (shouldCache('getThrowById', tx, skipCache, select) && canCache(this.redis)) {
         const cached = await cacheGetEntity<T>(this.redis, id, 'getThrowById', select);
         if (cached.hit) {
