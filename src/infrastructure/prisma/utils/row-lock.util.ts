@@ -107,7 +107,7 @@ export async function queryRowForUpdate(
   const idCol = quoteIdentifier(columnMap[idColumn] ?? idColumn);
 
   const rows = await tx.$queryRaw<Record<string, unknown>[]>(
-    Prisma.sql`SELECT ${Prisma.raw(selectClause)} FROM ${Prisma.raw(table)} WHERE ${Prisma.raw(idCol)} = ${id}::uuid ${Prisma.raw(lockClause)}`,
+    Prisma.sql`SELECT ${Prisma.raw(selectClause)} FROM ${Prisma.raw(table)} WHERE ${Prisma.raw(idCol)} = ${id} ${Prisma.raw(lockClause)}`,
   );
 
   if (!rows.length) return null;
