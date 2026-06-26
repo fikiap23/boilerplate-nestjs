@@ -1,13 +1,15 @@
 import * as basicAuth from 'express-basic-auth';
-import * as bodyParser from 'body-parser';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { cors: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    cors: true,
+  });
   const configService = app.get(ConfigService);
 
   app.use(
@@ -30,14 +32,12 @@ async function bootstrap() {
     }),
   );
 
-  app.use(bodyParser.json({ limit: '10mb' }));
-  app.use(
-    bodyParser.urlencoded({
-      limit: '10mb',
-      extended: true,
-      parameterLimit: 10000,
-    }),
-  );
+  app.useBodyParser('json', { limit: '10mb' });
+  app.useBodyParser('urlencoded', {
+    limit: '10mb',
+    extended: true,
+    parameterLimit: 10000,
+  });
 
   const config = new DocumentBuilder()
     .setTitle('Boilerplate Nest API')

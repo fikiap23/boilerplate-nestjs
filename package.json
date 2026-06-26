@@ -13,7 +13,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node build/compile/src/main",
-    "lint": "eslint \"{src,prisma}/**/*.ts\" --fix",
+    "lint": "eslint \"{src,prisma}/**/*.ts\" prisma.config.ts jest.config.ts --fix",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage"

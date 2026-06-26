@@ -1,9 +1,9 @@
-FROM node:22.5.1-alpine3.20
+FROM node:22-alpine
 
 WORKDIR /usr/src/app
 
 COPY package*.json ./
-
+COPY prisma.config.ts ./
 COPY prisma ./prisma/
 
 RUN npm ci

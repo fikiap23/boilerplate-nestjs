@@ -9,12 +9,19 @@ export default tseslint.config(
   eslintConfigPrettier,
   eslintPluginPrettier,
   {
-    ignores: ['build/**', 'dist/**', 'src/generated/**', 'node_modules/**'],
+    ignores: [
+      'build/**',
+      'dist/**',
+      'src/generated/**',
+      'node_modules/**',
+      'eslint.config.mjs',
+    ],
   },
   {
+    files: ['**/*.ts'],
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        project: ['./tsconfig.eslint.json'],
         tsconfigRootDir: import.meta.dirname,
       },
     },
