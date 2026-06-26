@@ -115,7 +115,7 @@ After clone (without `node_modules`), `yarn install` automatically runs `prisma 
 # 1. Add model in prisma/schema.prisma, then migrate
 npx prisma migrate dev --name add_product
 
-# 2. Generate sample scaffold (not full CRUD — copy patterns from admin/)
+# 2. Generate sample scaffold (runs npx prisma generate automatically)
 yarn gen:module product
 # flags: --route <path>  --no-cache  --dry-run
 ```

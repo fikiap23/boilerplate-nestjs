@@ -1,3 +1,4 @@
+import { execSync } from 'child_process';
 import * as path from 'path';
 import { resolveNames } from './naming';
 import { validateGeneration } from './validate';
@@ -69,6 +70,7 @@ function printHelp(): void {
   console.log(`Usage: yarn gen:module <name> [options]
 
 Scaffolds folder structure + sample files (repository wiring, select presets).
+Runs npx prisma generate after writing files (skipped with --dry-run).
 Full CRUD/endpoints: copy patterns from src/modules/admin/.
 
 Options:
@@ -84,6 +86,19 @@ Examples:
 `);
 }
 
+function runPrismaGenerate(projectRoot: string, dryRun: boolean): void {
+  if (dryRun) {
+    console.log('[dry-run] would run npx prisma generate');
+    return;
+  }
+
+  console.log('\nRunning npx prisma generate...');
+  execSync('npx prisma generate', {
+    cwd: projectRoot,
+    stdio: 'inherit',
+  });
+}
+
 function printNextSteps(kebab: string, cacheEnabled: boolean): void {
   console.log('\nNext steps:');
   console.log(`  1. Review samples in src/modules/${kebab}/`);
@@ -92,7 +107,7 @@ function printNextSteps(kebab: string, cacheEnabled: boolean): void {
   if (cacheEnabled) {
     console.log('  4. Add lock config to repository if needed (see AGENTS.md)');
   }
-  console.log('  5. Run: npx prisma generate && npx tsc --noEmit');
+  console.log('  5. Run: npx tsc --noEmit');
 }
 
 function main(): void {
@@ -116,6 +131,8 @@ function main(): void {
     if (cacheEnabled) {
       patchPayloadMap(projectRoot, names, options.dryRun);
     }
+
+    runPrismaGenerate(projectRoot, options.dryRun);
 
     console.log(`\nModule "${names.pascal}" generated successfully.`);
     printNextSteps(names.kebab, cacheEnabled);

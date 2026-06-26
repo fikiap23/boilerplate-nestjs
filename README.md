@@ -260,7 +260,7 @@ Includes `PORT_BE`, `DB_*`, `POSTGRES_*`, `DATABASE_URL_DEV`, Redis Commander se
 # 1. Add Prisma model in prisma/schema.prisma, then migrate
 npx prisma migrate dev --name add_product
 
-# 2. Scaffold module samples (folder, repository wiring, app.module, PrismaSelectPayloadMap)
+# 2. Scaffold module samples (auto-runs npx prisma generate)
 yarn gen:module product
 # options: --route products  --no-cache  --dry-run
 
