@@ -13,6 +13,8 @@ echo "PostgreSQL is up!"
 
 echo "Generate Prisma Client"
 npx prisma generate
+. ./build/fix-generated-ownership.sh
+fix_generated_ownership
 
 echo "Start Server Dev"
 npm run start:dev

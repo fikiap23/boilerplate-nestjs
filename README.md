@@ -274,6 +274,13 @@ The generator creates a **sample scaffold** under `src/modules/{name}/` (not ful
 - Empty **DTO** / **where** with `TODO` pointers to `src/modules/admin/`
 - Auto-registers `{Name}Module` in `app.module.ts` and `PrismaSelectPayloadMap` (unless `--no-cache`)
 
+If `prisma generate` fails with `EACCES` on `src/generated` (files owned by root after Docker):
+
+```bash
+make fix-generated-perms   # or: sudo chown -R $(id -u):$(id -g) src/generated
+npx prisma generate
+```
+
 ### Manual way
 
 Follow the **Admin** module as the reference implementation:

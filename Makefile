@@ -84,6 +84,10 @@ reset-migrate:
 # -----------------------------------------------------------------------------
 # Utils
 # -----------------------------------------------------------------------------
-.PHONY: network
+.PHONY: network fix-generated-perms
 network:
 	docker network create boilerplate-network 2>/dev/null || true
+
+# Fix src/generated owned by root after Docker prisma generate (bind mount)
+fix-generated-perms:
+	sudo chown -R $$(id -u):$$(id -g) src/generated

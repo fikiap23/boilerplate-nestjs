@@ -1,10 +1,10 @@
-import { execSync } from 'child_process';
 import * as path from 'path';
 import { resolveNames } from './naming';
 import { validateGeneration } from './validate';
 import { renderModuleFiles, writeFiles } from './render';
 import { patchAppModule } from './patch-app-module';
 import { patchPayloadMap } from './patch-payload-map';
+import { runPrismaGenerate } from './run-prisma-generate';
 
 interface CliOptions {
   name: string;
@@ -84,19 +84,6 @@ Examples:
   yarn gen:module blog-post --route blogs
   yarn gen:module product --dry-run
 `);
-}
-
-function runPrismaGenerate(projectRoot: string, dryRun: boolean): void {
-  if (dryRun) {
-    console.log('[dry-run] would run npx prisma generate');
-    return;
-  }
-
-  console.log('\nRunning npx prisma generate...');
-  execSync('npx prisma generate', {
-    cwd: projectRoot,
-    stdio: 'inherit',
-  });
 }
 
 function printNextSteps(kebab: string, cacheEnabled: boolean): void {
