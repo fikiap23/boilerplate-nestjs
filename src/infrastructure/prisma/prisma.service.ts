@@ -1,8 +1,17 @@
-import { Prisma, PrismaClient } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Prisma, PrismaClient } from 'src/infrastructure/prisma/prisma-client';
 
 @Injectable()
 export class PrismaService extends PrismaClient {
+  constructor(configService: ConfigService) {
+    const adapter = new PrismaPg({
+      connectionString: configService.get<string>('database.url'),
+    });
+    super({ adapter });
+  }
+
   /**
    * Executes a callback within a Prisma database transaction.
    * The optional `afterCommit` runs only after the transaction commits successfully —

@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from 'src/infrastructure/prisma/prisma-client';
 import { IsEnum, IsInt, IsOptional, IsString } from 'class-validator';
 
 export class PaginationDto {

@@ -8,18 +8,20 @@
     "allowSyntheticDefaultImports": true,
     "target": "ES2021",
     "sourceMap": true,
-    "outDir": "./dist",
+    "outDir": "./build/compile",
     "baseUrl": "./",
     "paths": {
       "src/*": ["src/*"],
       "prisma/*": ["prisma/*"]
     },
     "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo",
     "skipLibCheck": true,
     "strictNullChecks": false,
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false
-  }
+  },
+  "exclude": ["node_modules", "build", "dist", "jest.config.ts", "prisma.config.ts"]
 }

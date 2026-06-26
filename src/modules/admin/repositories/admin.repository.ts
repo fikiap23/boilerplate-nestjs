@@ -1,12 +1,13 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from 'src/infrastructure/prisma/prisma-client';
 import {
   createPrismaRepository,
   PrismaRepositoryInstance,
 } from 'src/infrastructure/prisma/create-prisma.repository';
 
-export type AdminPayload<T extends Prisma.AdminSelect> = Prisma.AdminGetPayload<{
-  select: T;
-}>;
+export type AdminPayload<T extends Prisma.AdminSelect> =
+  Prisma.AdminGetPayload<{
+    select: T;
+  }>;
 
 type AdminToPayload = <T extends Prisma.AdminSelect>(
   data: unknown,

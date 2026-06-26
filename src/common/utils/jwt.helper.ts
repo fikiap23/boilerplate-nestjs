@@ -12,7 +12,7 @@ export class JwtHelper {
 
   async signToken(payload: IPayloadJWT, expiresIn: string) {
     const access_token = await this.jwtService.signAsync(payload, {
-      expiresIn,
+      expiresIn: expiresIn as `${number}${'s' | 'm' | 'h' | 'd'}`,
       secret: this.configService.get<string>('app.jwtSecret'),
     });
     return { access_token };

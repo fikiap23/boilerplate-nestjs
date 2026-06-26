@@ -1,4 +1,9 @@
-import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleDestroy,
+  OnModuleInit,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
@@ -128,7 +133,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.setWithIndex(key, value, ttlSeconds, indexKey);
     } catch (err) {
-      this.logger.warn(`safeSetWithIndex failed for key=${key}`, (err as Error).message);
+      this.logger.warn(
+        `safeSetWithIndex failed for key=${key}`,
+        (err as Error).message,
+      );
     }
   }
 
@@ -136,7 +144,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.invalidateByIndex(indexKey);
     } catch (err) {
-      this.logger.warn(`safeInvalidateByIndex failed for idx=${indexKey}`, (err as Error).message);
+      this.logger.warn(
+        `safeInvalidateByIndex failed for idx=${indexKey}`,
+        (err as Error).message,
+      );
     }
   }
 
@@ -144,7 +155,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     try {
       return await this.setNx(key, ttlSeconds);
     } catch (err) {
-      this.logger.warn(`safeSetNx failed for key=${key}`, (err as Error).message);
+      this.logger.warn(
+        `safeSetNx failed for key=${key}`,
+        (err as Error).message,
+      );
       return false;
     }
   }

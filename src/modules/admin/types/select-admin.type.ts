@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from 'src/infrastructure/prisma/prisma-client';
 
 type AdminSelectPresetKey = keyof typeof adminSelectPresets;
 

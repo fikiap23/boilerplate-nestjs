@@ -21,7 +21,11 @@ export function buildQueryKey(opts: {
   return `${opts.prefix}:repo:${opts.model}:q:${opts.method}:${queryHash}`;
 }
 
-export function entityIndexKey(prefix: string, model: string, id: string): string {
+export function entityIndexKey(
+  prefix: string,
+  model: string,
+  id: string,
+): string {
   return `${prefix}:repo:${model}:e:${id}:__idx`;
 }
 

@@ -2,7 +2,8 @@
  * Manual integration test for PostgreSQL row-level lock.
  * Run: DATABASE_URL="postgresql://app:apppassword@localhost:5432/boilerplate_nest" npx ts-node -r tsconfig-paths/register scripts/test-row-lock.ts
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from 'src/generated/prisma/client';
 import {
   assertLockPrerequisites,
   buildLockClause,
@@ -20,7 +21,8 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-const prisma = new PrismaClient({ datasources: { db: { url: DATABASE_URL } } });
+const adapter = new PrismaPg({ connectionString: DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 
 const lockConfig = {
   tableName: 'admin',

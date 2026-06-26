@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from 'src/infrastructure/prisma/prisma-client';
 import { FilterAdminDto } from '../dto/admin.dto';
 
 export function whereAdminGetManyPaginate(filter: FilterAdminDto): {

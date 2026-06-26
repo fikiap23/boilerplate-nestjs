@@ -1,4 +1,4 @@
-import { Admin } from '@prisma/client';
+import type { Admin } from '../../src/generated/prisma/client';
 
 export type IAdmin = Pick<
   Admin,

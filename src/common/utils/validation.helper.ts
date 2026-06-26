@@ -1,8 +1,7 @@
 import * as _ from 'lodash';
 import { Response } from 'express';
 import { formatErrorResponse } from './http.helper';
-import { CustomError } from 'src/common/exceptions/custom-error';
-import { Prisma } from '@prisma/client';
+import { Prisma } from 'src/infrastructure/prisma/prisma-client';
 
 export const isEmpty = (value: any) => {
   return _.isEmpty(value);

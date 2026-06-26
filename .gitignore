@@ -1,6 +1,8 @@
 # compiled output
+/build/compile
 /dist
 /node_modules
+/src/generated
 /public
 
 # Logs
