@@ -109,6 +109,23 @@ After clone (without `node_modules`), `yarn install` automatically runs `prisma 
 
 ## Adding a New Feature Module
 
+### Option A — Generator CLI (recommended)
+
+```bash
+# 1. Add model in prisma/schema.prisma, then migrate
+npx prisma migrate dev --name add_product
+
+# 2. Generate sample scaffold (not full CRUD — copy patterns from admin/)
+yarn gen:module product
+# flags: --route <path>  --no-cache  --dry-run
+```
+
+Generator output: `src/modules/{name}/` with wired **repository** + **select presets**, and empty controller/service/DTO/where samples. Also auto-patches `app.module.ts` and `PrismaSelectPayloadMap`.
+
+Then copy endpoint and business logic from `src/modules/admin/`.
+
+### Option B — Manual
+
 Follow `AdminModule` as the template (`src/modules/admin/`).
 
 ### 1. Prisma model
@@ -555,6 +572,7 @@ Docker dev: copy `build/.env.example` → `.env` in project root, run `make netw
 | `yarn start:prod` | `node build/compile/src/main` |
 | `yarn lint` | ESLint flat config (`eslint.config.mjs`) |
 | `yarn test` | Jest |
+| `yarn gen:module <name>` | Scaffold sample module (`tools/generate-module/`) |
 
 Build output: `build/compile/` (not `dist/`). ESLint ignores `src/generated/**`.
 

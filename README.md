@@ -183,6 +183,7 @@ Interactive docs: **http://localhost:3000/docs**
 | `yarn format` | Prettier format |
 | `yarn test` | Unit tests (Jest) |
 | `yarn test:cov` | Tests with coverage |
+| `yarn gen:module <name>` | Scaffold sample module (see below) |
 
 Prisma client is generated automatically on `postinstall` and `prebuild`.
 
@@ -252,6 +253,27 @@ Includes `PORT_BE`, `DB_*`, `POSTGRES_*`, `DATABASE_URL_DEV`, Redis Commander se
 ---
 
 ## Adding a new feature module
+
+### Quick way — generator (recommended)
+
+```bash
+# 1. Add Prisma model in prisma/schema.prisma, then migrate
+npx prisma migrate dev --name add_product
+
+# 2. Scaffold module samples (folder, repository wiring, app.module, PrismaSelectPayloadMap)
+yarn gen:module product
+# options: --route products  --no-cache  --dry-run
+
+# 3. Copy endpoint/service/DTO patterns from src/modules/admin/, then customize
+```
+
+The generator creates a **sample scaffold** under `src/modules/{name}/` (not full CRUD):
+
+- Wired **repository** (`createPrismaRepository`) + **select presets**
+- Empty **controller** / **service** / **DTO** / **where** with `TODO` pointers to `src/modules/admin/`
+- Auto-registers `{Name}Module` in `app.module.ts` and `PrismaSelectPayloadMap` (unless `--no-cache`)
+
+### Manual way
 
 Follow the **Admin** module as the reference implementation:
 
