@@ -12,7 +12,6 @@ export const {{camel}}SelectPresets = {
   } satisfies Prisma.{{pascal}}Select,
 
   general: {
-    // TODO: add fields — see src/modules/admin/types/select-admin.type.ts
-    {{generalFields}}
-  } satisfies Prisma.{{pascal}}Select{{withPasswordPreset}},
+    id: true,
+  } satisfies Prisma.{{pascal}}Select,
 };

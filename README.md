@@ -269,8 +269,9 @@ yarn gen:module product
 
 The generator creates a **sample scaffold** under `src/modules/{name}/` (not full CRUD):
 
-- Wired **repository** (`createPrismaRepository`) + **select presets**
-- Empty **controller** / **service** / **DTO** / **where** with `TODO` pointers to `src/modules/admin/`
+- Wired **repository** (`createPrismaRepository`) + **select presets** (`id` only)
+- Sample **GET /:id** endpoint + `handleGetById` service method
+- Empty **DTO** / **where** with `TODO` pointers to `src/modules/admin/`
 - Auto-registers `{Name}Module` in `app.module.ts` and `PrismaSelectPayloadMap` (unless `--no-cache`)
 
 ### Manual way

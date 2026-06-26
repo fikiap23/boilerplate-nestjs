@@ -120,7 +120,7 @@ yarn gen:module product
 # flags: --route <path>  --no-cache  --dry-run
 ```
 
-Generator output: `src/modules/{name}/` with wired **repository** + **select presets**, and empty controller/service/DTO/where samples. Also auto-patches `app.module.ts` and `PrismaSelectPayloadMap`.
+Generator output: `src/modules/{name}/` with wired **repository**, **select presets** (`id` only), and one sample **GET /:id** endpoint. Also auto-patches `app.module.ts` and `PrismaSelectPayloadMap`.
 
 Then copy endpoint and business logic from `src/modules/admin/`.
 
