@@ -1,148 +1,283 @@
-# boilerplate-nest
+# Boilerplate Nest
 
-NestJS boilerplate with **Auth (JWT)** and **Admin (Prisma)** — template with the same auth flow and a single Prisma model (Admin).
+Production-ready **NestJS** starter for backend APIs — JWT auth, role-based admin management, Prisma + PostgreSQL, and Redis cache built into the repository layer.
+
+Skip weeks of boilerplate. Clone, configure, and ship features on a consistent architecture your team can extend.
+
+---
+
+## Why this boilerplate?
+
+| Problem | How this repo solves it |
+|--------|-------------------------|
+| Auth from scratch every project | JWT login, guards, role checks, and Passport strategy wired up |
+| Inconsistent data access | All DB reads/writes go through `createPrismaRepository` — cache and invalidation stay consistent |
+| Cache bugs in production | Redis cache-aside is opt-in per repository, with sensitive-field bypass and documented invalidation rules |
+| Messy API responses | Standard `{ isSuccess, message, data, meta? }` format, centralized error handling, Swagger out of the box |
+| Docker setup pain | `Makefile` + `build/` for dev, production, and isolated migration workflows |
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+|-------|------------|
+| Framework | NestJS 11 |
+| ORM | Prisma 7 + PostgreSQL 16 |
+| Cache | Redis 7 (ioredis), cache-aside at repository level |
+| Auth | JWT (Passport), bcrypt password hashing |
+| Validation | class-validator, env validation on startup |
+| API docs | Swagger UI at `/docs` (HTTP Basic Auth) |
+| Runtime | Node.js 20+ |
+
+---
 
 ## Features
 
-- **Auth**: Admin login, JWT (7 days), guards (JwtGuard, RoleGuard), Passport JWT strategy
-- **Admin**: CRUD for admins (create, list paginate, profile, update, delete). Roles: SUPERADMIN, ADMIN, EDITOR, MODERATOR. Status: ACTIVE, INACTIVE
-- **Prisma**: Single model `Admin`, PostgreSQL, paginator, seed for one superadmin
-- **Swagger**: `/docs` with HTTP basic auth
-- **Helpers**: formatResponse, errorHandler, validateUUID, SwaggerEndpoint decorator
+### Authentication & authorization
+- Admin login → JWT access token (7-day expiry)
+- `JwtGuard` + `RoleGuard` with `@Roles()` decorator
+- Roles: `SUPERADMIN`, `ADMIN`, `EDITOR`, `MODERATOR`
+- Admin status: `ACTIVE`, `INACTIVE`
 
-## Requirements
+### Admin management
+- Full CRUD with pagination, search, and filters (role, status)
+- Profile endpoints (read/update own profile)
+- Superadmin-only create/update/delete
 
-- Node.js 20+
-- PostgreSQL 16 (local or Docker)
-- Redis 7 (local or Docker, optional for repository cache)
-- npm or yarn
+### Data layer
+- Generic `createPrismaRepository` factory — typed CRUD, pagination, transactions
+- Redis cache-aside with per-method TTL and automatic invalidation
+- PostgreSQL row-level locking (`SELECT … FOR UPDATE`) for race-safe read-modify-write
+- Idempotent seed for a default superadmin
 
-## Setup (local)
+### Developer experience
+- Swagger at `/docs` with `@SwaggerEndpoint` decorator
+- ESLint + Prettier, Jest setup
+- Docker Compose for local dev (app, Postgres, Redis, Redis Commander)
+- `AGENTS.md` and `docs/CACHE.md` for AI agents and contributors
 
-```bash
-# Install dependencies
-npm install
+---
 
-# Copy environment file and edit DATABASE_URL, JWT_SECRET, REDIS_*
-cp .env.example .env
+## Architecture
 
-# Generate Prisma client and run migrations
-npx prisma generate
-npx prisma migrate dev --name init
-
-# Seed database (optional)
-npx prisma db seed
-
-# Run in development
-npm run start:dev
+```
+HTTP Request
+    ↓
+Controller   ← guards, validation, Swagger, response formatting
+    ↓
+Service      ← business logic, authorization (handle* methods)
+    ↓
+Repository   ← Prisma + Redis cache (createPrismaRepository)
+    ↓
+PostgreSQL / Redis
 ```
 
-## Docker (Makefile + build/)
+**Rule:** Services and controllers never call `prisma.*` directly. All database access goes through repositories so caching and invalidation stay correct.
 
-Same layout as backend-quiz: `build/` holds Dockerfiles and compose files, `Makefile` drives dev, production, and migrations.
+```
+src/
+├── config/              # Env configs + validation
+├── common/              # Guards, decorators, utils, middleware
+├── infrastructure/
+│   ├── prisma/          # PrismaService, repository factory, row lock
+│   └── redis/           # RedisService, cache utilities
+├── modules/
+│   ├── auth/            # Login, JWT strategy
+│   └── admin/           # Admin CRUD
+└── shared/              # Cross-module DTOs & interfaces
+```
 
-### Prerequisites
+---
 
-Create the shared network once:
+## Quick start
+
+### Option A — Docker (recommended)
+
+Fastest path: app, database, and Redis in one command.
 
 ```bash
+# 1. Create shared Docker network (once)
 make network
-```
 
-Copy env for **dev** (from project root):
-
-```bash
+# 2. Configure environment
 cp build/.env.example .env
-# Edit .env if needed (DB passwords, JWT_SECRET)
+# Edit JWT_SECRET and passwords before production use
+
+# 3. Start everything
+make up
 ```
 
-### Dev (local development in Docker)
+| Service | URL |
+|---------|-----|
+| API | http://localhost:3000 |
+| Swagger | http://localhost:3000/docs |
+| Redis Commander | http://localhost:8081 |
+
+Default Swagger credentials: `admin` / `admin` (set via `SWAGGER_USERNAME` / `SWAGGER_PASSWORD`).
+
+### Option B — Local (Node.js)
+
+Run the app on your machine; connect to local or Docker Postgres/Redis.
 
 ```bash
-make up      # Start app + PostgreSQL + Redis, follow logs
-make down    # Stop
-make logs    # Follow app logs
-make exec    # Shell into app container
-make restart # Restart app and follow logs
+# 1. Install dependencies
+yarn install   # or npm install
+
+# 2. Configure environment
+cp .env.example .env
+# Set DATABASE_URL, JWT_SECRET, REDIS_*
+
+# 3. Database setup
+npx prisma migrate dev
+npx prisma db seed    # optional — creates superadmin
+
+# 4. Start dev server
+yarn start:dev
 ```
 
-- **API**: http://localhost:3000  
-- **Swagger**: http://localhost:3000/docs (basic auth from `SWAGGER_USERNAME` / `SWAGGER_PASSWORD`)  
-- **PostgreSQL**: localhost:5432 (user/password from `.env`)
-- **Redis**: localhost:6379 (repository cache; `REDIS_HOST` / `REDIS_PORT` in `.env`)
-- **Redis Commander**: http://localhost:8081 (`REDIS_COMMANDER_HTTP_USER` / `REDIS_COMMANDER_HTTP_PASSWORD`)
+---
 
-### Production
+## Default login (after seed)
+
+| Field | Value |
+|-------|-------|
+| Email | `superadmin@example.com` |
+| Password | `Superadmin123!` (or `SUPER_ADMIN_PASSWORD_SEED` from `.env`) |
 
 ```bash
-cp build/.env.production.example build/.env.production
-# Edit build/.env.production (DATABASE_URL, JWT_SECRET, REDIS_*, etc.)
-
-make up-prod     # Build and start app + PostgreSQL + Redis
-make down-prod   # Stop
-make logs-prod   # Follow app logs
-make exec-prod   # Shell into app container
-make build-prod  # Build images only (no cache)
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"superadmin@example.com","password":"Superadmin123!"}'
 ```
 
-### Migration (create new migration files)
+Use the returned `accessToken` as `Authorization: Bearer <token>` on protected routes.
 
-Uses a separate PostgreSQL container and creates a migration with `prisma migrate dev --create-only`:
+---
 
-```bash
-make up-migrate    # Start migrate DB + run migrate script
-make down-migrate  # Stop
-make reset-migrate # Stop and remove migrate volume
-```
+## API overview
 
-Env for migrate is in `build/.env.migrate` (defaults point at `boilerplate-nest-database-postgres-migrate`).
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/auth/login` | — | Login with email & password → `accessToken` |
+| `GET` | `/admin/profile` | JWT | Current admin profile |
+| `PATCH` | `/admin/profile` | JWT | Update own profile |
+| `GET` | `/admin/paginate` | JWT + ADMIN/SUPERADMIN | Paginated list (`page`, `limit`, `search`, `role`, `status`) |
+| `GET` | `/admin/:id` | JWT | Get admin by ID |
+| `POST` | `/admin` | JWT + SUPERADMIN | Create admin |
+| `PATCH` | `/admin/:id` | JWT + SUPERADMIN | Update admin |
+| `DELETE` | `/admin/:id` | JWT + SUPERADMIN | Delete admin |
 
-### Environment variables (build/.env.example)
+Interactive docs: **http://localhost:3000/docs**
 
-| Variable | Description |
-|----------|-------------|
-| `PORT_BE` | Host port for app (default 3000) |
-| `DB_HOST`, `DB_PORT`, `POSTGRES_*` | PostgreSQL connection for dev |
-| `DATABASE_URL_DEV` | Full PostgreSQL URL for dev (built from above) |
-| `REDIS_HOST`, `REDIS_PORT` | Redis connection (dev container: `boilerplate-nest-redis-dev`) |
-| `REDIS_PREFIX`, `REDIS_DEFAULT_TTL` | Cache key namespace and default TTL (seconds) |
-| `PORT_REDIS_COMMANDER`, `REDIS_COMMANDER_HTTP_*` | Redis Commander UI (dev Docker only) |
-| `JWT_SECRET`, `SUPER_ADMIN_PASSWORD_SEED` | Auth |
-| `SWAGGER_USERNAME`, `SWAGGER_PASSWORD` | Swagger UI basic auth |
+---
 
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run start:dev` | Development with watch |
-| `npm run build` | Production build |
-| `npm run start:prod` | Run production build |
-| `npm run lint` | ESLint with fix |
-| `npm run format` | Prettier format |
-| `npm run test` | Run unit tests |
+| `yarn start:dev` | Development with hot reload |
+| `yarn build` | Production build |
+| `yarn start:prod` | Run production build |
+| `yarn lint` | ESLint with auto-fix |
+| `yarn format` | Prettier format |
+| `yarn test` | Unit tests (Jest) |
+| `yarn test:cov` | Tests with coverage |
 
-## Seeded admin
+Prisma client is generated automatically on `postinstall` and `prebuild`.
 
-After seeding, you can log in with:
+---
 
-- **Email:** `superadmin@example.com`
-- **Password:** `Superadmin123!` (or the value of `SUPER_ADMIN_PASSWORD_SEED` in `.env`)
+## Docker commands
 
-## API overview
+All Docker files live in `build/`. The root `Makefile` wraps common workflows.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/auth/login` | Login; body: `{ "email", "password" }` → `{ "accessToken" }` |
-| GET | `/admin/profile` | Current admin (header: `Authorization: Bearer <token>`) |
-| GET | `/admin/paginate` | Paginated list (query: page, limit, sort, search, role, status). Requires JWT and role SUPERADMIN or ADMIN |
-| GET | `/admin/:id` | Get admin by ID (JWT required) |
-| POST | `/admin` | Create admin (JWT + SUPERADMIN) |
-| PATCH | `/admin/profile` | Update own profile (JWT) |
-| PATCH | `/admin/:id` | Update admin by ID (JWT + SUPERADMIN) |
-| DELETE | `/admin/:id` | Delete admin by ID (JWT + SUPERADMIN) |
+### Development
 
-Full interactive docs: **http://localhost:3000/docs** (basic auth from `SWAGGER_USERNAME` / `SWAGGER_PASSWORD`).
+```bash
+make up        # Start app + Postgres + Redis, follow logs
+make down      # Stop containers
+make logs      # Follow app logs
+make exec      # Shell into app container
+make restart   # Restart app
+```
+
+### Production
+
+```bash
+cp build/.env.production.example build/.env.production
+# Edit DATABASE_URL, JWT_SECRET, REDIS_*, etc.
+
+make up-prod     # Build and start
+make down-prod   # Stop
+make logs-prod   # Follow logs
+make build-prod  # Rebuild images (no cache)
+```
+
+### Migrations (isolated DB)
+
+Create migration files without touching your dev database:
+
+```bash
+make up-migrate     # Start migrate container + run prisma migrate dev --create-only
+make down-migrate   # Stop
+make reset-migrate  # Stop and remove migrate volume
+```
+
+Env defaults: `build/.env.migrate`.
+
+---
+
+## Environment variables
+
+### Local (`.env.example`)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `JWT_SECRET` | Yes | Secret for signing JWT tokens |
+| `PORT` | No | HTTP port (default `3000`) |
+| `REDIS_HOST` | No | Redis host (default `localhost`) |
+| `REDIS_PORT` | No | Redis port (default `6379`) |
+| `REDIS_PREFIX` | No | Cache key prefix (default `bn`) |
+| `REDIS_DEFAULT_TTL` | No | Default cache TTL in seconds |
+| `SWAGGER_USERNAME` | No | Swagger Basic Auth username |
+| `SWAGGER_PASSWORD` | No | Swagger Basic Auth password |
+| `SUPER_ADMIN_PASSWORD_SEED` | No | Password for seeded superadmin |
+
+### Docker dev (`build/.env.example`)
+
+Includes `PORT_BE`, `DB_*`, `POSTGRES_*`, `DATABASE_URL_DEV`, Redis Commander settings, and the same auth/Swagger vars. Copy to project root as `.env` when using `make up`.
+
+---
+
+## Adding a new feature module
+
+Follow the **Admin** module as the reference implementation:
+
+1. Add Prisma model → `npx prisma migrate dev`
+2. Create repository with `createPrismaRepository` (enable cache if needed)
+3. Add select presets (`general`, `minimal`, `withPassword`)
+4. Add where builder for list filters
+5. DTOs with class-validator + `@ApiProperty`
+6. Service (`handle*` methods) → Controller → Module
+7. Register module in `src/app.module.ts`
+
+Detailed conventions: [`AGENTS.md`](./AGENTS.md)  
+Cache rules: [`docs/CACHE.md`](./docs/CACHE.md)
+
+---
+
+## Requirements
+
+- **Node.js** 20+
+- **PostgreSQL** 16
+- **Redis** 7 (optional but recommended for repository cache)
+- **Docker** & **Docker Compose** (for Makefile workflow)
+- **yarn** or **npm**
+
+---
 
 ## License
 
-UNLICENSED
+UNLICENSED — internal / private use unless a license is added by the maintainer.

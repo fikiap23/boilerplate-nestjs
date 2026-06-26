@@ -8,7 +8,7 @@ This project uses Redis as a cache-aside layer integrated into the generic `crea
 Service → Repository → [Redis cache] → Prisma → PostgreSQL
 ```
 
-- Cache is **opt-in per repository** via `cache: { enabled: true }` in factory options.
+- Cache is **opt-in per repository** via `cache: { enabled: true, model: 'modelname' }` in factory options (`model` is required for cache to activate).
 - Redis is injected with `@Optional()` — if Redis is down the app keeps working (fail-open).
 - All cache operations use **safe wrappers** that catch errors and log warnings instead of crashing.
 
@@ -99,25 +99,6 @@ All TTLs are automatically jittered by ±10% to prevent mass expiry (thundering 
 
 When a cache miss occurs, a lightweight lock (`SET NX`) prevents multiple concurrent requests from all hitting the database. Only the lock holder populates the cache; others retry the GET a few times before falling through to the database.
 
-## Row Level Lock
-
-Pass `lock` on `getById` or `getThrowById` to acquire a PostgreSQL row lock (`SELECT ... FOR UPDATE`). This always bypasses cache — no `skipCache` needed.
-
-Requirements:
-- Repository must have `lock: { tableName, columns? }` in factory options.
-- `lock` must be used with `tx` inside `prisma.execTx()`.
-
-```typescript
-const order = await this.orderRepository.getThrowById({
-  tx,
-  id: orderId,
-  select: getOrderSelect('general'),
-  lock: { mode: 'noKeyUpdate' },
-});
-```
-
-See `AGENTS.md` → Row Level Lock section for full usage patterns.
-
 ## Transactions (`execTx`)
 
 Cache is automatically **skipped** inside transactions:
@@ -140,7 +121,22 @@ await this.prisma.execTx(
 
 ## Row Level Lock
 
-Passing `lock` on `getById` / `getThrowById` always bypasses cache (same as `tx` or `skipCache`). Row lock requires an active transaction — see [`AGENTS.md`](../AGENTS.md) for usage patterns.
+Pass `lock` on `getById` or `getThrowById` to acquire a PostgreSQL row lock (`SELECT ... FOR UPDATE`). This always bypasses cache — no `skipCache` needed.
+
+Requirements:
+- Repository must have `lock: { tableName, columns }` in factory options.
+- `lock` must be used with `tx` inside `prisma.execTx()`.
+
+```typescript
+const order = await this.orderRepository.getThrowById({
+  tx,
+  id: orderId,
+  select: getOrderSelect('general'),
+  lock: { mode: 'noKeyUpdate' },
+});
+```
+
+See [`AGENTS.md`](../AGENTS.md) → Row Level Lock section for full usage patterns.
 
 ## Redis Failure
 
@@ -177,9 +173,10 @@ docker exec boilerplate-nest-redis-dev redis-cli SMEMBERS "bn:repo:admin:q:__idx
 ## Checklist for New Repository Modules
 
 1. Add `model: 'modelname'` and `cache: { enabled: true, ttl: ..., sensitiveFields: [...] }` to `createPrismaRepository` options.
-2. Create select presets — separate `general` (cacheable, no sensitive fields) from `withPassword` / `withSecret` (internal only).
-3. In services: use `skipCache: true` for uniqueness checks and auth lookups.
-4. In services: use `invalidate: 'none'` for metadata-only updates (timestamps, counters).
-5. In transactions: use `afterCommit` callback for invalidation.
-6. For read-modify-write in transactions: use `lock` on `getById`/`getThrowById` (bypasses cache automatically).
-7. Avoid bypassing the repository (raw `prisma.model.*` calls) — those skip cache entirely and leave stale data.
+2. Register the model in `PrismaSelectPayloadMap` (`src/infrastructure/prisma/types/prisma-select-payload.type.ts`).
+3. Create select presets — separate `general` (cacheable, no sensitive fields) from `withPassword` / `withSecret` (internal only).
+4. In services: use `skipCache: true` for uniqueness checks and auth lookups.
+5. In services: use `invalidate: 'none'` for metadata-only updates (timestamps, counters).
+6. In transactions: use `afterCommit` callback for invalidation.
+7. For read-modify-write in transactions: use `lock` on `getById`/`getThrowById` (bypasses cache automatically).
+8. Avoid bypassing the repository (raw `prisma.model.*` calls) — those skip cache entirely and leave stale data.
