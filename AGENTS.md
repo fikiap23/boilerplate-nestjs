@@ -198,13 +198,18 @@ export type FeatureRepository = PrismaRepositoryInstance<
 
 ```typescript
 // src/infrastructure/prisma/types/prisma-select-payload.type.ts
+export const PRISMA_SELECT_PAYLOAD_MODEL_KEYS = [
+  'admin',
+  'feature', // add new entry (runtime — used by validateCacheConfig)
+] as const;
+
 export interface PrismaSelectPayloadMap {
   admin: Prisma.AdminSelect;
   feature: Prisma.FeatureSelect; // add new entry
 }
 ```
 
-Without this registration, typed payloads from `select` will not resolve for the new model.
+Without this registration, typed payloads from `select` will not resolve and app startup will fail for cache-configured repositories.
 
 ### 3. Select presets
 

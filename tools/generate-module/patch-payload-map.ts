@@ -55,6 +55,26 @@ export function patchPayloadMap(
     ),
   );
 
+  const modelKeyEntry = `  '${names.repoModel}',`;
+  const keysMatch = content.match(
+    /export const PRISMA_SELECT_PAYLOAD_MODEL_KEYS = \[([\s\S]*?)\] as const;/,
+  );
+  if (!keysMatch) {
+    throw new Error('Could not find PRISMA_SELECT_PAYLOAD_MODEL_KEYS array');
+  }
+
+  if (content.includes(modelKeyEntry)) {
+    throw new Error(
+      `Model "${names.repoModel}" is already in PRISMA_SELECT_PAYLOAD_MODEL_KEYS`,
+    );
+  }
+
+  const keysBody = keysMatch[1].replace(/\s+$/, '');
+  content = content.replace(
+    keysMatch[0],
+    `export const PRISMA_SELECT_PAYLOAD_MODEL_KEYS = [${keysBody}\n${modelKeyEntry}\n] as const;`,
+  );
+
   if (dryRun) {
     console.log(
       '[dry-run] would patch src/infrastructure/prisma/types/prisma-select-payload.type.ts',
