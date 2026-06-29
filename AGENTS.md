@@ -35,8 +35,9 @@ src/
 │   └── {feature}/             # Feature modules (admin, auth, ...)
 │       ├── {feature}.module.ts
 │       ├── controllers/
-│       ├── services/
-│       ├── repositories/
+│       ├── services/          # Use case API — handle* only
+│       ├── helpers/           # Supporting logic — *.helper.ts (@Injectable)
+│       ├── repositories/      # createPrismaRepository only
 │       ├── dto/
 │       └── types/             # Select presets, where builders
 ├── shared/                    # Cross-module DTOs & interfaces
@@ -61,7 +62,8 @@ Controller  →  Service  →  Repository  →  Prisma / Redis
 | Layer | Responsibility | Rules |
 |-------|---------------|-------|
 | **Controller** | HTTP, guards, Swagger, response formatting | No business logic. No direct Prisma access. |
-| **Service** | Business logic, authorization checks, orchestration | Method prefix `handle*`. Throw `CustomError`. Call repository, not Prisma. |
+| **Service** | Use case orchestration (thin) | **Only** `handle*` methods. No private business methods. Supporting logic → `helpers/`. Throw `CustomError`. Call repository, not Prisma. |
+| **Helper** | Validate, compose, map, guard | `@Injectable` class in `helpers/{feature}-{responsibility}.helper.ts`. May inject repositories. Not a new data-access layer — still goes through repository. |
 | **Repository** | Data access + cache | Created via `createPrismaRepository` factory. All DB reads/writes go through here. |
 | **Infrastructure** | PrismaService, RedisService, config | Global modules (`@Global()`). |
 
@@ -361,6 +363,40 @@ try {
 - Internal auth (needs password): `getXxxSelect('withPassword')` — automatically skips cache.
 - Metadata update: `updateById({ ..., invalidate: 'none' })` for fields like `lastLoginAt`.
 
+## Helper Conventions
+
+Applies to **every** feature module (`admin`, `auth`, `product`, `master-data`, and new modules).
+
+- Service **only** contains `handle*` methods — one method per endpoint/use case.
+- Other logic (uniqueness validation, relation compose for API response, DTO mapping, pre-delete guards) → `helpers/*.helper.ts`.
+- File naming: `{feature}-{responsibility}.helper.ts` (e.g. `product-category-compose.helper.ts`).
+- Responsibility suffixes: `validate`, `compose`, `mapper`, `guard`, `loader`.
+- Helper classes: `@Injectable()`, register in module `providers` (export only if used by another module).
+- **Do not** use `.repository.ts` suffix for helpers — `repositories/` is reserved for `createPrismaRepository`.
+- DB access still via repository (helpers must not call `prisma.model.*` directly).
+
+```typescript
+// services/product.service.ts — handle* only
+async handleGetById(id: string) {
+  const product = await this.productRepository.getThrowById({
+    id,
+    select: getProductSelect('general'),
+  });
+  return this.productCategoryComposeHelper.composeOne(product);
+}
+
+// helpers/product-category-compose.helper.ts
+@Injectable()
+export class ProductCategoryComposeHelper {
+  constructor(private readonly categoryRepository: CategoryRepository) {}
+
+  async composeOne<T extends { categoryId: string }>(product: T) {
+    const category = await this.categoryRepository.getThrowById({ ... });
+    return { ...product, category };
+  }
+}
+```
+
 ## Repository Factory (`createPrismaRepository`)
 
 Factory in `src/infrastructure/prisma/create-prisma.repository.ts` produces a class with these methods:
@@ -605,6 +641,8 @@ Build output: `build/compile/` (not `dist/`). ESLint ignores `src/generated/**`.
 - [ ] `invalidate: 'none'` on metadata-only update
 - [ ] Controller: try/catch + formatResponse/errorHandler + SwaggerEndpoint
 - [ ] Service: `handle*` naming + CustomError for business errors
+- [ ] Service: only `handle*` methods (no private business methods)
+- [ ] Supporting logic in `helpers/*.helper.ts`, registered in module `providers`
 - [ ] DTO: class-validator + @ApiProperty
 - [ ] Module: register provider + export if used by other modules
 - [ ] `lock.columns` complete for all `@map` fields when using row lock
@@ -624,6 +662,10 @@ Build output: `build/compile/` (not `dist/`). ESLint ignores `src/generated/**`.
 | Lock config validation | `src/infrastructure/prisma/utils/validate-lock-config.util.ts` |
 | Admin repository | `src/modules/admin/repositories/admin.repository.ts` |
 | Service | `src/modules/admin/services/admin.service.ts` |
+| Helper (compose nested cache) | `src/modules/product/helpers/product-category-compose.helper.ts` |
+| Helper (slug validate) | `src/modules/master-data/helpers/category-slug-validate.helper.ts` |
+| Helper (email validate) | `src/modules/admin/helpers/admin-email-validate.helper.ts` |
+| Helper (auth login) | `src/modules/auth/helpers/auth-authenticate.helper.ts` |
 | Controller | `src/modules/admin/controllers/admin.controller.ts` |
 | Select presets | `src/modules/admin/types/select-admin.type.ts` |
 | Where builder | `src/modules/admin/types/where-admin.type.ts` |

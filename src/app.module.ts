@@ -5,6 +5,8 @@ import { PrismaModule } from './infrastructure/prisma/prisma.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { AdminModule } from './modules/admin/admin.module';
+import { MasterDataModule } from './modules/master-data/master-data.module';
+import { ProductModule } from './modules/product/product.module';
 import { CommonModule } from './common/common.module';
 import databaseConfig from './config/database.config';
 import appConfig from './config/app.config';
@@ -23,6 +25,8 @@ import { validate } from './config/env.validation';
     RedisModule,
     AuthModule,
     AdminModule,
+    MasterDataModule,
+    ProductModule,
   ],
 })
 export class AppModule implements NestModule {

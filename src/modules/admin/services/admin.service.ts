@@ -8,41 +8,29 @@ import {
   UpdateAdminDto,
   UpdateProfileAdminDto,
 } from '../dto/admin.dto';
-import { CustomError } from 'src/common/exceptions/custom-error';
-import { compareBcrypt, hashBcrypt } from 'src/common/utils/bcrypt.util';
+import { hashBcrypt } from 'src/common/utils/bcrypt.util';
+import { AdminEmailValidateHelper } from '../helpers/admin-email-validate.helper';
+import { AdminProfilePasswordHelper } from '../helpers/admin-profile-password.helper';
+import { AdminRoleGuardHelper } from '../helpers/admin-role-guard.helper';
 import { getAdminSelect } from '../types/select-admin.type';
 import { whereAdminGetManyPaginate } from '../types/where-admin.type';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly adminRepository: AdminRepository) {}
+  constructor(
+    private readonly adminRepository: AdminRepository,
+    private readonly adminRoleGuardHelper: AdminRoleGuardHelper,
+    private readonly adminEmailValidateHelper: AdminEmailValidateHelper,
+    private readonly adminProfilePasswordHelper: AdminProfilePasswordHelper,
+  ) {}
 
   async handleCreate(sub: string, dto: CreateAdminDto) {
-    const creator = await this.adminRepository.getThrowById({
-      id: sub,
-      select: getAdminSelect('general'),
-    });
-
-    if (creator.role !== EAdminRole.SUPERADMIN) {
-      throw new CustomError({ statusCode: 403, message: 'Forbidden' });
-    }
-
-    const byEmail = await this.adminRepository.getFirst({
-      where: { email: dto.email },
-      select: getAdminSelect('minimal'),
-      skipCache: true,
-    });
-
-    if (byEmail) {
-      throw new CustomError({
-        statusCode: 409,
-        message: 'Email already exists',
-      });
-    }
+    await this.adminRoleGuardHelper.assertSuperAdmin(sub);
+    await this.adminEmailValidateHelper.assertEmailAvailable(dto.email);
 
     const passwordHash = await hashBcrypt(dto.password);
 
-    const created = await this.adminRepository.create({
+    return await this.adminRepository.create({
       data: {
         name: dto.name,
         email: dto.email,
@@ -51,8 +39,6 @@ export class AdminService {
         status: dto.status ?? EAdminStatus.INACTIVE,
       },
     });
-
-    return created;
   }
 
   async handleGetById(id: string) {
@@ -76,14 +62,7 @@ export class AdminService {
   }
 
   async handleUpdateById(sub: string, id: string, dto: UpdateAdminDto) {
-    const actor = await this.adminRepository.getThrowById({
-      id: sub,
-      select: getAdminSelect('general'),
-    });
-
-    if (actor.role !== EAdminRole.SUPERADMIN) {
-      throw new CustomError({ statusCode: 403, message: 'Forbidden' });
-    }
+    await this.adminRoleGuardHelper.assertSuperAdmin(sub);
 
     const current = await this.adminRepository.getThrowById({
       id,
@@ -91,28 +70,17 @@ export class AdminService {
     });
 
     if (dto.email && dto.email !== current.email) {
-      const byEmail = await this.adminRepository.getFirst({
-        where: {
-          email: dto.email,
-          NOT: { id: current.id },
-        },
-        select: getAdminSelect('minimal'),
-        skipCache: true,
-      });
-
-      if (byEmail) {
-        throw new CustomError({
-          statusCode: 409,
-          message: 'Email already exists',
-        });
-      }
+      await this.adminEmailValidateHelper.assertEmailAvailable(
+        dto.email,
+        current.id,
+      );
     }
 
     const passwordHash = dto.password
       ? await hashBcrypt(dto.password)
       : undefined;
 
-    const updated = await this.adminRepository.updateById({
+    return await this.adminRepository.updateById({
       id: current.id,
       data: {
         ...(dto.name && { name: dto.name }),
@@ -122,8 +90,6 @@ export class AdminService {
         ...(passwordHash && { password: passwordHash }),
       },
     });
-
-    return updated;
   }
 
   async handleUpdateProfile(sub: string, dto: UpdateProfileAdminDto) {
@@ -133,42 +99,17 @@ export class AdminService {
     });
 
     if (dto.email && dto.email !== current.email) {
-      const byEmail = await this.adminRepository.getFirst({
-        where: {
-          email: dto.email,
-          NOT: { id: current.id },
-        },
-        select: getAdminSelect('minimal'),
-        skipCache: true,
-      });
-
-      if (byEmail) {
-        throw new CustomError({
-          statusCode: 409,
-          message: 'Email already exists',
-        });
-      }
+      await this.adminEmailValidateHelper.assertEmailAvailable(
+        dto.email,
+        current.id,
+      );
     }
 
-    let passwordHash: string | undefined;
-
-    if (dto.oldPassword && dto.newPassword) {
-      const isMatch = await compareBcrypt(dto.oldPassword, current.password);
-
-      if (!isMatch) {
-        throw new CustomError({
-          statusCode: 400,
-          message: 'Current password is incorrect',
-        });
-      }
-
-      passwordHash = await hashBcrypt(dto.newPassword);
-    } else if (dto.oldPassword && !dto.newPassword) {
-      throw new CustomError({
-        statusCode: 400,
-        message: 'newPassword is required when changing password',
-      });
-    }
+    const passwordHash =
+      await this.adminProfilePasswordHelper.resolvePasswordHash(
+        dto,
+        current.password,
+      );
 
     await this.adminRepository.updateById({
       id: current.id,
@@ -183,16 +124,8 @@ export class AdminService {
   }
 
   async handleDeleteById(sub: string, id: string) {
-    const actor = await this.adminRepository.getThrowById({
-      id: sub,
-      select: getAdminSelect('general'),
-    });
+    await this.adminRoleGuardHelper.assertSuperAdmin(sub);
 
-    if (actor.role !== EAdminRole.SUPERADMIN) {
-      throw new CustomError({ statusCode: 403, message: 'Forbidden' });
-    }
-
-    const deleted = await this.adminRepository.deleteById({ id });
-    return deleted;
+    return await this.adminRepository.deleteById({ id });
   }
 }

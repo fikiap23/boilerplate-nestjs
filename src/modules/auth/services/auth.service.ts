@@ -1,24 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { CustomError } from 'src/common/exceptions/custom-error';
 import { EAdminStatus } from 'src/common/enums/admin.enum';
-import { compareBcrypt } from 'src/common/utils/bcrypt.util';
 import { JwtHelper } from 'src/common/utils/jwt.helper';
 import { IPayloadJWT } from 'src/shared/interfaces/auth.interface';
 import { AdminRepository } from 'src/modules/admin/repositories/admin.repository';
 import { LoginDto } from '../dto/login.dto';
+import { AuthAuthenticateHelper } from '../helpers/auth-authenticate.helper';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly adminRepository: AdminRepository,
     private readonly jwtHelper: JwtHelper,
+    private readonly authAuthenticateHelper: AuthAuthenticateHelper,
   ) {}
 
-  /**
-    Processes admin login by authenticating credentials, checking status, updating last login, and generating JWT
-  **/
   async handleLogin(dto: LoginDto) {
-    const admin = await this.authenticateAdmin(dto);
+    const admin = await this.authAuthenticateHelper.authenticate(dto);
 
     if (admin.status !== EAdminStatus.ACTIVE) {
       throw new CustomError({
@@ -48,31 +46,5 @@ export class AuthService {
     return {
       accessToken: access_token,
     };
-  }
-
-  private async authenticateAdmin(dto: LoginDto) {
-    const { password, email } = dto;
-
-    const admin = await this.adminRepository.getFirst({
-      where: { email },
-      skipCache: true,
-    });
-
-    if (!admin) {
-      throw new CustomError({
-        statusCode: 401,
-        message: 'Invalid email or password',
-      });
-    }
-
-    const isMatch = await compareBcrypt(password, admin.password);
-    if (!isMatch) {
-      throw new CustomError({
-        statusCode: 401,
-        message: 'Invalid email or password',
-      });
-    }
-
-    return admin;
   }
 }

@@ -6,7 +6,8 @@ import { Prisma } from 'src/infrastructure/prisma/prisma-client';
  */
 export interface PrismaSelectPayloadMap {
   admin: Prisma.AdminSelect;
-  // feature: Prisma.FeatureSelect;
+  category: Prisma.CategorySelect;
+  product: Prisma.ProductSelect;
 }
 
 type RepoModel = keyof PrismaSelectPayloadMap;
@@ -16,7 +17,8 @@ type GetPayloadForModel<
   TSelect extends PrismaSelectPayloadMap[TRepoModel],
 > = {
   admin: Prisma.AdminGetPayload<{ select: TSelect }>;
-  // feature: Prisma.FeatureGetPayload<{ select: TSelect }>;
+  category: Prisma.CategoryGetPayload<{ select: TSelect }>;
+  product: Prisma.ProductGetPayload<{ select: TSelect }>;
 }[TRepoModel];
 
 /**

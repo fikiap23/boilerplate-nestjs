@@ -170,6 +170,50 @@ docker exec boilerplate-nest-redis-dev redis-cli FLUSHDB
 docker exec boilerplate-nest-redis-dev redis-cli SMEMBERS "bn:repo:admin:q:__idx"
 ```
 
+## Nested Relations (Product + Category)
+
+Cache is **per-model**. If you cache a parent read with a nested relation (`select: { category: { select: ... } }`), updating the child only invalidates the child's cache — the parent blob stays stale.
+
+### Anti-pattern
+
+```typescript
+// Stale risk: category name changes but product cache still has old nested category
+await productRepository.getThrowById({
+  id,
+  select: { id: true, name: true, category: { select: { id: true, name: true } } },
+});
+```
+
+### Recommended: compose in service (cache per entity)
+
+Cache each entity with a flat `general` preset (no nested relations). Assemble the API response in the service:
+
+```typescript
+const product = await productRepository.getThrowById({
+  id,
+  select: getProductSelect('general'), // scalars only, includes categoryId
+});
+const category = await categoryRepository.getThrowById({
+  id: product.categoryId,
+  select: getCategorySelect('general'),
+});
+return { ...product, category };
+```
+
+For paginated lists, batch-load categories:
+
+```typescript
+const categoryIds = [...new Set(products.map((p) => p.categoryId))];
+const categories = await categoryRepository.getMany({
+  where: { id: { in: categoryIds } },
+  select: getCategorySelect('general'),
+});
+```
+
+When category is updated, its repository invalidates `repo:category:*`. The next product read re-fetches fresh category while product scalars may still be cached — data stays consistent.
+
+Reference implementation: `src/modules/product/services/product.service.ts` + `src/modules/master-data/`.
+
 ## Checklist for New Repository Modules
 
 1. Add `model: 'modelname'` and `cache: { enabled: true, ttl: ..., sensitiveFields: [...] }` to `createPrismaRepository` options.
