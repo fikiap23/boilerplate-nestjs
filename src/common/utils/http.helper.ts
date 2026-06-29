@@ -1,10 +1,21 @@
 import { Response } from 'express';
 import { ETypeErrorCode } from 'src/common/enums/admin.enum';
 import {
+  cacheDebugStorage,
+  isCacheDebugEnabled,
+} from 'src/infrastructure/redis/utils/cache-debug.util';
+import {
   IFormatErrorResponse,
   IFormatResponse,
   IMessageStatusCode,
 } from 'src/shared/interfaces/http-helper.interface';
+
+function applyCacheDebugHeader(response: Response): void {
+  if (!isCacheDebugEnabled()) return;
+
+  const status = cacheDebugStorage.getStore()?.status ?? 'SKIP';
+  response.setHeader('X-Cache', status);
+}
 
 export const getMessageStatusCode = (status: number): IMessageStatusCode => {
   let isSuccess: boolean = false;
@@ -37,6 +48,7 @@ export const formatResponse = (
   const { isSuccess, message } = getMessageStatusCode(status);
   const res: IFormatResponse = { isSuccess, message, data, meta };
 
+  applyCacheDebugHeader(response);
   return response.status(status).send(res);
 };
 
