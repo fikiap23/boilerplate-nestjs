@@ -4,5 +4,6 @@ export default {
   passWithNoTests: true,
   moduleNameMapper: {
     '^src/(.*)$': '<rootDir>/src/$1',
+    '^prisma/(.*)$': '<rootDir>/prisma/$1',
   },
 };

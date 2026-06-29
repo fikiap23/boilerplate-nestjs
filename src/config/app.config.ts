@@ -5,4 +5,5 @@ export default registerAs('app', () => ({
   jwtSecret: process.env.JWT_SECRET,
   swaggerUsername: process.env.SWAGGER_USERNAME,
   swaggerPassword: process.env.SWAGGER_PASSWORD,
+  cacheDebug: process.env.CACHE_DEBUG === 'true',
 }));

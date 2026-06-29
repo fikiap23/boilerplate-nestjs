@@ -6,7 +6,6 @@ export type CacheMethod =
   | 'getManyPaginate';
 
 export interface RepositoryCacheOptions {
-  enabled: boolean;
   ttl?: number;
   nullTtl?: number;
   sensitiveFields?: string[];

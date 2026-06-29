@@ -119,7 +119,7 @@ npx prisma migrate dev --name add_product
 
 # 2. Generate sample scaffold (runs npx prisma generate automatically)
 yarn gen:module product
-# flags: --route <path>  --no-cache  --dry-run
+# flags: --route <path>  --cache  --dry-run
 ```
 
 Generator output: `src/modules/{name}/` with wired **repository**, **select presets** (`id` only), and one sample **GET /:id** endpoint. Also auto-patches `app.module.ts` and `PrismaSelectPayloadMap`.
@@ -170,7 +170,6 @@ export const FeatureRepository = createPrismaRepository<
     columns: { createdAt: 'created_at' }, // all scalar fields with @map
   },
   cache: {
-    enabled: true,
     ttl: 300,
     nullTtl: 60,
     sensitiveFields: ['password'],
@@ -359,8 +358,9 @@ try {
 - Business errors: `throw new CustomError({ statusCode: 4xx, message: '...' })`.
 - Password hashing: `hashBcrypt()` / `compareBcrypt()` from `src/common/utils/bcrypt.util`.
 - Select presets: always use `getXxxSelect('general')` for API responses.
-- Uniqueness check: `getFirst({ where, select: getXxxSelect('minimal'), skipCache: true })`.
-- Internal auth (needs password): `getXxxSelect('withPassword')` — automatically skips cache.
+- Uniqueness check: `getFirst({ where, select: getXxxSelect('minimal') })` — no `setCache` (default fresh).
+- User-facing reads: `getThrowById` / `getManyPaginate` with `setCache: true` when repo has cache config.
+- Internal auth (needs password): `getXxxSelect('withPassword')` — never cached even with `setCache`.
 - Metadata update: `updateById({ ..., invalidate: 'none' })` for fields like `lastLoginAt`.
 
 ## Helper Conventions
@@ -381,6 +381,7 @@ async handleGetById(id: string) {
   const product = await this.productRepository.getThrowById({
     id,
     select: getProductSelect('general'),
+    setCache: true,
   });
   return this.productCategoryComposeHelper.composeOne(product);
 }
@@ -404,21 +405,21 @@ Factory in `src/infrastructure/prisma/create-prisma.repository.ts` produces a cl
 | Method | Prisma | Cache |
 |--------|--------|-------|
 | `create` | `.create` | invalidate queries (default) |
-| `getById` | `.findUnique` | cache-aside |
-| `getThrowById` | `.findUniqueOrThrow` | cache-aside |
-| `getFirst` | `.findFirst` | cache-aside |
-| `getMany` | `.findMany` | cache-aside |
-| `getManyPaginate` | paginator | cache-aside |
+| `getById` | `.findUnique` | cache-aside when `setCache: true` |
+| `getThrowById` | `.findUniqueOrThrow` | cache-aside when `setCache: true` |
+| `getFirst` | `.findFirst` | cache-aside when `setCache: true` |
+| `getMany` | `.findMany` | cache-aside when `setCache: true` |
+| `getManyPaginate` | paginator | cache-aside when `setCache: true` |
 | `updateById` | `.update` | invalidate (default `all`) |
 | `deleteById` | `.delete` | invalidate (default `all`) |
 | `invalidateCache` | — | manual, for post-tx |
 
-Read options: `tx?`, `select?`, `skipCache?`, `lock?` (only `getById` / `getThrowById`).
+Read options: `tx?`, `select?`, `setCache?`, `lock?` (only `getById` / `getThrowById`).
 Write options: `tx?`, `invalidate?: 'all' | 'entity' | 'queries' | 'none'`.
 
 All methods support `tx` for transactions — cache is automatically skipped when `tx` is present.
 
-Cache is only active when `cache.enabled: true` **and** `model` is set (string key for cache namespace).
+Reads cache only when `setCache: true` **and** repository has `model` + `cache` config. Writes invalidate when repository has `model` + `cache` config.
 
 ## Row Level Lock (PostgreSQL)
 
@@ -515,18 +516,18 @@ Full details: [`docs/CACHE.md`](docs/CACHE.md).
 
 ### REQUIRED
 
-1. **Opt-in** per repository: `cache: { enabled: true, model: 'feature' }` — `model` is required for cache to activate.
-2. **Register** model in `PrismaSelectPayloadMap` when cache is enabled.
+1. **Repository config:** `model` + `cache: { ttl, ... }` — or `yarn gen:module <name> --cache`.
+2. **Register** model in `PrismaSelectPayloadMap` when using cache config.
 3. **Sensitive fields** are never cached — use select presets without password for API responses.
-4. **Auth lookup** → `skipCache: true`.
-5. **Uniqueness check** → `skipCache: true`.
+4. **Auth / uniqueness** — do not pass `setCache` on `getFirst`.
+5. **User-facing reads** — `setCache: true` on `getThrowById` / `getManyPaginate` / compose helpers.
 6. **Metadata-only update** → `invalidate: 'none'`.
 7. **All DB access** through repository (don't bypass Prisma directly).
 8. **Transactions** → cache skipped; manual invalidation via `afterCommit` in `execTx`.
 
 ### Select preset vs cache
 
-| Preset | Cacheable | Use case |
+| Preset | Cacheable with `setCache` | Use case |
 |--------|-----------|----------|
 | `minimal` | Yes | Existence check (not uniqueness write-path) |
 | `general` | Yes | API response (no sensitive fields) |
@@ -549,7 +550,7 @@ Redis is injected with `@Optional()` — if Redis is down, the app keeps running
 
 ## Auth Patterns
 
-- Login: `AuthService.handleLogin` → `getFirst({ skipCache: true })` → bcrypt compare → JWT.
+- Login: `AuthService.handleLogin` → `getFirst` (no `setCache`) → bcrypt compare → JWT.
 - JWT guard: `JwtGuard` (Passport `'jwt'`).
 - Role guard: `RoleGuard` + `@Roles(EAdminRole.SUPERADMIN)`.
 - JWT strategy validate: `getById({ select: getAdminSelect('minimal') })`.
@@ -637,7 +638,7 @@ Build output: `build/compile/` (not `dist/`). ESLint ignores `src/generated/**`.
 - [ ] All DB access through repository (not Prisma directly in service)
 - [ ] `PrismaSelectPayloadMap` updated if new repository uses cache
 - [ ] Select preset: `general` without sensitive fields, `withPassword` for internal
-- [ ] `skipCache: true` on auth lookup and uniqueness check
+- [ ] `setCache: true` on user-facing reads only; not on auth/uniqueness `getFirst`
 - [ ] `invalidate: 'none'` on metadata-only update
 - [ ] Controller: try/catch + formatResponse/errorHandler + SwaggerEndpoint
 - [ ] Service: `handle*` naming + CustomError for business errors

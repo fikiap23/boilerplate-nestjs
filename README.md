@@ -266,7 +266,7 @@ npx prisma migrate dev --name add_product
 
 # 2. Scaffold module samples (auto-runs npx prisma generate)
 yarn gen:module product
-# options: --route products  --no-cache  --dry-run
+# options: --route products  --cache  --dry-run
 
 # 3. Copy endpoint/service/DTO patterns from src/modules/admin/, then customize
 ```
@@ -276,7 +276,7 @@ The generator creates a **sample scaffold** under `src/modules/{name}/` (not ful
 - Wired **repository** (`createPrismaRepository`) + **select presets** (`id` only)
 - Sample **GET /:id** endpoint + `handleGetById` service method
 - Empty **DTO** / **where** with `TODO` pointers to `src/modules/admin/`
-- Auto-registers `{Name}Module` in `app.module.ts` and `PrismaSelectPayloadMap` (unless `--no-cache`)
+- Auto-registers `{Name}Module` in `app.module.ts`; with `--cache`, also patches `PrismaSelectPayloadMap` and repository cache config
 
 If `prisma generate` fails with `EACCES` on `src/generated` (files owned by root after Docker):
 

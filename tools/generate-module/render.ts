@@ -34,7 +34,6 @@ function applyTemplate(template: string, context: RenderContext): string {
   const cacheBlock = cacheEnabled
     ? `  model: '${names.repoModel}',
   cache: {
-    enabled: true,
     ttl: 300,
     nullTtl: 60,
     sensitiveFields: ['password'],

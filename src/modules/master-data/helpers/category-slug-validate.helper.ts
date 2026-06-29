@@ -15,7 +15,6 @@ export class CategorySlugValidateHelper {
         ...(excludeId ? { NOT: { id: excludeId } } : {}),
       },
       select: getCategorySelect('minimal'),
-      skipCache: true,
     });
 
     if (bySlug) {

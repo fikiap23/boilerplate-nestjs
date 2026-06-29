@@ -41,6 +41,7 @@ export class ProductService {
     const product = await this.productRepository.getThrowById({
       id,
       select: getProductSelect('general'),
+      setCache: true,
     });
 
     return this.productCategoryComposeHelper.composeOne(product);
@@ -56,6 +57,7 @@ export class ProductService {
       orderBy: { createdAt: sort },
       page,
       limit,
+      setCache: true,
     });
 
     return {

@@ -11,6 +11,7 @@ export class ProductCategoryComposeHelper {
     const category = await this.categoryRepository.getThrowById({
       id: product.categoryId,
       select: getCategorySelect('general'),
+      setCache: true,
     });
 
     return { ...product, category };
@@ -23,6 +24,7 @@ export class ProductCategoryComposeHelper {
       ? await this.categoryRepository.getMany({
           where: { id: { in: categoryIds } },
           select: getCategorySelect('general'),
+          setCache: true,
         })
       : [];
 

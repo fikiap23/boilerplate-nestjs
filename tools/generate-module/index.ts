@@ -9,7 +9,7 @@ import { runPrismaGenerate } from './run-prisma-generate';
 interface CliOptions {
   name: string;
   route?: string;
-  noCache: boolean;
+  cache: boolean;
   dryRun: boolean;
 }
 
@@ -23,14 +23,14 @@ function parseArgs(argv: string[]): CliOptions {
 
   let name: string | undefined;
   let route: string | undefined;
-  let noCache = false;
+  let cache = false;
   let dryRun = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
 
-    if (arg === '--no-cache') {
-      noCache = true;
+    if (arg === '--cache') {
+      cache = true;
       continue;
     }
 
@@ -63,7 +63,7 @@ function parseArgs(argv: string[]): CliOptions {
     throw new Error('Module name is required');
   }
 
-  return { name, route, noCache, dryRun };
+  return { name, route, cache, dryRun };
 }
 
 function printHelp(): void {
@@ -75,12 +75,13 @@ Full CRUD/endpoints: copy patterns from src/modules/admin/.
 
 Options:
   --route <path>   Controller route (default: same as module name)
-  --no-cache       Skip repository cache config and PrismaSelectPayloadMap patch
+  --cache          Add repository cache config and PrismaSelectPayloadMap patch
   --dry-run        Print actions without writing files
   -h, --help       Show this help message
 
 Examples:
   yarn gen:module product
+  yarn gen:module product --cache
   yarn gen:module blog-post --route blogs
   yarn gen:module product --dry-run
 `);
@@ -92,9 +93,17 @@ function printNextSteps(kebab: string, cacheEnabled: boolean): void {
   console.log('  2. Copy endpoint/service/DTO patterns from src/modules/admin/');
   console.log('  3. Update select presets to match your Prisma model fields');
   if (cacheEnabled) {
-    console.log('  4. Add lock config to repository if needed (see AGENTS.md)');
+    console.log(
+      '  4. Add setCache: true on user-facing reads (see docs/CACHE.md)',
+    );
+    console.log('  5. Add lock config to repository if needed (see AGENTS.md)');
+    console.log('  6. Run: npx tsc --noEmit');
+  } else {
+    console.log(
+      '  4. Optional: re-run with --cache after reading docs/CACHE.md',
+    );
+    console.log('  5. Run: npx tsc --noEmit');
   }
-  console.log('  5. Run: npx tsc --noEmit');
 }
 
 function main(): void {
@@ -103,7 +112,7 @@ function main(): void {
     const projectRoot = path.resolve(__dirname, '../..');
     const templatesDir = path.join(__dirname, 'templates');
     const names = resolveNames(options.name, options.route);
-    const cacheEnabled = !options.noCache;
+    const cacheEnabled = options.cache;
 
     const model = validateGeneration(names, { projectRoot, cacheEnabled });
 

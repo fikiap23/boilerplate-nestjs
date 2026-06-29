@@ -15,7 +15,6 @@ export class AdminEmailValidateHelper {
         ...(excludeId ? { NOT: { id: excludeId } } : {}),
       },
       select: getAdminSelect('minimal'),
-      skipCache: true,
     });
 
     if (byEmail) {

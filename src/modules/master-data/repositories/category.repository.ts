@@ -24,7 +24,6 @@ export const CategoryRepository = createPrismaRepository<
 >({
   model: 'category',
   cache: {
-    enabled: true,
     ttl: 300,
     nullTtl: 60,
     sensitiveFields: [],

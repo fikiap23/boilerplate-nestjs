@@ -45,6 +45,7 @@ export class AdminService {
     return await this.adminRepository.getThrowById({
       id,
       select: getAdminSelect('general'),
+      setCache: true,
     });
   }
 
@@ -58,6 +59,7 @@ export class AdminService {
       orderBy: { createdAt: sort },
       page,
       limit,
+      setCache: true,
     });
   }
 

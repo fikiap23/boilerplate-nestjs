@@ -14,7 +14,6 @@ export class AuthAuthenticateHelper {
     const admin = await this.adminRepository.getFirst({
       where: { email: dto.email },
       select: getAdminSelect('withPassword'),
-      skipCache: true,
     });
 
     if (!admin) {

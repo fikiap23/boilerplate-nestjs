@@ -33,6 +33,7 @@ export class CategoryService {
     return await this.categoryRepository.getThrowById({
       id,
       select: getCategorySelect('general'),
+      setCache: true,
     });
   }
 
@@ -46,6 +47,7 @@ export class CategoryService {
       orderBy: { createdAt: sort },
       page,
       limit,
+      setCache: true,
     });
   }
 

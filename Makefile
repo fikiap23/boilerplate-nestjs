@@ -84,10 +84,20 @@ reset-migrate:
 # -----------------------------------------------------------------------------
 # Utils
 # -----------------------------------------------------------------------------
-.PHONY: network fix-generated-perms
+.PHONY: network fix-generated-perms cache-flush cache-keys
+REDIS_CONTAINER_DEV ?= boilerplate-nest-redis-dev
+REDIS_PREFIX ?= bn
+
 network:
 	docker network create boilerplate-network 2>/dev/null || true
 
 # Fix src/generated owned by root after Docker prisma generate (bind mount)
 fix-generated-perms:
 	sudo chown -R $$(id -u):$$(id -g) src/generated
+
+cache-flush:
+	docker exec $(REDIS_CONTAINER_DEV) redis-cli FLUSHDB
+
+cache-keys:
+	@test -n "$(MODEL)" || (echo "Usage: make cache-keys MODEL=admin" && exit 1)
+	docker exec $(REDIS_CONTAINER_DEV) redis-cli --scan --pattern "$(REDIS_PREFIX):repo:$(MODEL):*"
