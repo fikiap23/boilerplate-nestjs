@@ -409,12 +409,17 @@ export function createPrismaRepository<
     /**
      * Manual invalidation for use after prisma.execTx() completes.
      */
-    async invalidateCache(opts?: { id?: string }): Promise<void> {
+    async invalidateCache(opts?: {
+      id?: string;
+      tags?: string[];
+    }): Promise<void> {
       if (!canInvalidate(this.redis)) return;
       if (opts?.id) await doInvalidateEntity(this.redis, opts.id);
+      if (opts?.tags && opts.tags.length > 0) {
+        await doInvalidateTags(this.redis, opts.tags);
+      }
       await doInvalidateQueries(this.redis);
     }
-
     async create<T extends TSelect>({
       tx,
       data,

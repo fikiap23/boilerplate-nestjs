@@ -96,8 +96,8 @@ Operasi write akan secara otomatis menghapus cache yang relevan di Redis sesaat 
     Memperbarui data berdasarkan ID. Invalidation default: `'all'`.
 *   **`deleteById({ id, select?, tx?, invalidate?, tags? })`**
     Menghapus data berdasarkan ID. Invalidation default: `'all'`.
-*   **`invalidateCache({ id? })`**
-    Method utilitas untuk melakukan invalidasi cache secara manual.
+*   **`invalidateCache({ id?, tags? })`**
+    Method utilitas untuk melakukan invalidasi cache secara manual. Berguna untuk membersihkan data entitas berdasarkan ID dan/atau sekumpulan cache tags secara spesifik.
 
 ---
 
