@@ -35,8 +35,19 @@ import {
 import { validateLockConfig } from './utils/validate-lock-config.util';
 import { validateCacheConfig } from './utils/validate-cache-config.util';
 import { recordCacheDebug } from '../redis/utils/cache-debug.util';
+import { CustomError } from 'src/common/exceptions/custom-error';
 
 const paginate: PaginateFunction = paginator({});
+
+const handleNotFoundError = (modelName?: string): never => {
+  const entityName = modelName
+    ? modelName.charAt(0).toUpperCase() + modelName.slice(1)
+    : 'Record';
+  throw new CustomError({
+    statusCode: 404,
+    message: `${entityName} not found`,
+  });
+};
 
 const NULL_SENTINEL = '__NULL__';
 const STAMPEDE_LOCK_TTL = 10;
@@ -543,10 +554,20 @@ export function createPrismaRepository<
             lock,
           });
           if (result === null) {
-            await getModel(this.prisma, tx).findUniqueOrThrow({
-              where: { id },
-              select: dbSelect,
-            });
+            try {
+              await getModel(this.prisma, tx).findUniqueOrThrow({
+                where: { id },
+                select: dbSelect,
+              });
+            } catch (error) {
+              if (
+                error instanceof Prisma.PrismaClientKnownRequestError &&
+                error.code === 'P2025'
+              ) {
+                handleNotFoundError(modelName);
+              }
+              throw error;
+            }
           }
           return options.toPayload<T>(result) as Payload<T>;
         }
@@ -565,10 +586,20 @@ export function createPrismaRepository<
           if (cached.hit) {
             recordCacheDebug('getThrowById', 'HIT', modelName);
             if (cached.data === null) {
-              await getModel(this.prisma, tx).findUniqueOrThrow({
-                where: { id },
-                select: dbSelect,
-              });
+              try {
+                await getModel(this.prisma, tx).findUniqueOrThrow({
+                  where: { id },
+                  select: dbSelect,
+                });
+              } catch (error) {
+                if (
+                  error instanceof Prisma.PrismaClientKnownRequestError &&
+                  error.code === 'P2025'
+                ) {
+                  handleNotFoundError(modelName);
+                }
+                throw error;
+              }
             }
             return cached.data as Payload<T>;
           }
@@ -577,10 +608,21 @@ export function createPrismaRepository<
           recordCacheDebug('getThrowById', 'BYPASS', 'repo not configured');
         }
 
-        const result = await getModel(this.prisma, tx).findUniqueOrThrow({
-          where: { id },
-          select: dbSelect,
-        });
+        let result;
+        try {
+          result = await getModel(this.prisma, tx).findUniqueOrThrow({
+            where: { id },
+            select: dbSelect,
+          });
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2025'
+          ) {
+            handleNotFoundError(modelName);
+          }
+          throw error;
+        }
         if (useCache) {
           await cacheSetEntity(
             this.redis,
@@ -791,24 +833,34 @@ export function createPrismaRepository<
       tags: string[] | null | ((result: Payload<T>) => string[] | null);
     }): Promise<Payload<T>> {
       return this.processSelectAndCompose(select, async (dbSelect) => {
-        const result = await getModel(this.prisma, tx).update({
-          where: { id },
-          data,
-          select: dbSelect,
-        });
-        if (!tx && canInvalidate(this.redis)) {
-          const resolvedTags =
-            typeof tags === 'function'
-              ? tags(options.toPayload<T>(result) as Payload<T>)
-              : tags;
-          await runInvalidation(
-            this.redis,
-            invalidate,
-            id,
-            resolvedTags ?? undefined,
-          );
+        try {
+          const result = await getModel(this.prisma, tx).update({
+            where: { id },
+            data,
+            select: dbSelect,
+          });
+          if (!tx && canInvalidate(this.redis)) {
+            const resolvedTags =
+              typeof tags === 'function'
+                ? tags(options.toPayload<T>(result) as Payload<T>)
+                : tags;
+            await runInvalidation(
+              this.redis,
+              invalidate,
+              id,
+              resolvedTags ?? undefined,
+            );
+          }
+          return options.toPayload<T>(result) as Payload<T>;
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2025'
+          ) {
+            handleNotFoundError(modelName);
+          }
+          throw error;
         }
-        return options.toPayload<T>(result) as Payload<T>;
       });
     }
 
@@ -827,23 +879,33 @@ export function createPrismaRepository<
       tags: string[] | null | ((result: Payload<T>) => string[] | null);
     }): Promise<Payload<T>> {
       return this.processSelectAndCompose(select, async (dbSelect) => {
-        const result = await getModel(this.prisma, tx).delete({
-          where: { id },
-          select: dbSelect,
-        });
-        if (!tx && canInvalidate(this.redis)) {
-          const resolvedTags =
-            typeof tags === 'function'
-              ? tags(options.toPayload<T>(result) as Payload<T>)
-              : tags;
-          await runInvalidation(
-            this.redis,
-            invalidate,
-            id,
-            resolvedTags ?? undefined,
-          );
+        try {
+          const result = await getModel(this.prisma, tx).delete({
+            where: { id },
+            select: dbSelect,
+          });
+          if (!tx && canInvalidate(this.redis)) {
+            const resolvedTags =
+              typeof tags === 'function'
+                ? tags(options.toPayload<T>(result) as Payload<T>)
+                : tags;
+            await runInvalidation(
+              this.redis,
+              invalidate,
+              id,
+              resolvedTags ?? undefined,
+            );
+          }
+          return options.toPayload<T>(result) as Payload<T>;
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2025'
+          ) {
+            handleNotFoundError(modelName);
+          }
+          throw error;
         }
-        return options.toPayload<T>(result) as Payload<T>;
       });
     }
   }

@@ -15,6 +15,8 @@ import { Product } from '../../domain/entities/product.entity';
 import { Price } from '../../domain/value-objects/price.value-object';
 import { Stock } from '../../domain/value-objects/stock.value-object';
 import { CacheTags } from 'src/common/utils/cache-tag.util';
+import { MerchantClient } from 'src/modules/merchant/client';
+import { CustomError } from 'src/common/exceptions/custom-error';
 
 @Injectable()
 export class ProductService {
@@ -23,12 +25,23 @@ export class ProductService {
     @Inject('IProductRepository')
     private readonly productRepository: IProductRepository,
     private readonly productCategoryValidateHelper: ProductCategoryValidateHelper,
+    private readonly merchantClient: MerchantClient,
   ) {}
 
   async handleCreate(dto: CreateProductDto): Promise<Product> {
     await this.productCategoryValidateHelper.validateCategoryExists(
       dto.categoryId,
     );
+    const merchant = await this.merchantClient.getMerchant(dto.merchantId);
+
+    if (!merchant) {
+      throw new CustomError({
+        statusCode: 404,
+        message: 'Merchant not found',
+      });
+    }
+
+    console.log(merchant);
 
     const product = new Product({
       name: dto.name,

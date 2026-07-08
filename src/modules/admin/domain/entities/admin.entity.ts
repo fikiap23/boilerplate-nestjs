@@ -111,7 +111,11 @@ export class Admin {
     }
   }
 
-  public updateProfile(name?: string, email?: string, passwordHash?: string): void {
+  public updateProfile(
+    name?: string,
+    email?: string,
+    passwordHash?: string,
+  ): void {
     if (name !== undefined) this.setName(name);
     if (email !== undefined) this.setEmail(email);
     if (passwordHash !== undefined) this.setPassword(passwordHash);

@@ -7,6 +7,45 @@ export const isEmpty = (value: any) => {
   return _.isEmpty(value);
 };
 
+const formatPrismaErrorMessage = (
+  error: Prisma.PrismaClientKnownRequestError,
+): string => {
+  const target = (error.meta?.target as string[]) || [];
+  const field = (error.meta?.field_name as string) || '';
+
+  switch (error.code) {
+    case 'P2002': {
+      if (target.length > 0) {
+        const formattedFields = target.map((t) => _.startCase(t)).join(', ');
+        return `${formattedFields} already exists`;
+      }
+      return 'Unique constraint failed';
+    }
+    case 'P2003': {
+      if (field) {
+        const cleanedField = field.replace('_fkey', '').replace(/_id$/, 'Id');
+        return `Related record for field '${cleanedField}' does not exist`;
+      }
+      return 'Foreign key constraint failed';
+    }
+    case 'P2025': {
+      const cause = error.meta?.cause as string;
+      if (cause) {
+        return cause;
+      }
+      return 'Record not found';
+    }
+    default: {
+      const lines = error.message.trim().split('\n');
+      const lastLine = lines[lines.length - 1];
+      if (lastLine) {
+        return lastLine.replace(/^→\s*/, '').trim();
+      }
+      return error.message;
+    }
+  }
+};
+
 export const errorHandler = (response: Response, error: any) => {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     const statusMap: Record<string, number> = {
@@ -18,8 +57,9 @@ export const errorHandler = (response: Response, error: any) => {
     };
 
     const statusCode = statusMap[error.code] ?? 400;
+    const cleanMessage = formatPrismaErrorMessage(error);
 
-    return formatErrorResponse(response, error.message, statusCode);
+    return formatErrorResponse(response, cleanMessage, statusCode);
   }
 
   if (
