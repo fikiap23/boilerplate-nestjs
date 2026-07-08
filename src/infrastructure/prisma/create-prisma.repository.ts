@@ -329,7 +329,14 @@ export function createPrismaRepository<
   ): Promise<void> {
     if (tags && tags.length > 0) {
       if (id) await doInvalidateEntity(redis, id);
-      await doInvalidateTags(redis, tags);
+      // Invalidate tag-indexed queries AND also sweep the global query index.
+      // Queries may have been stored under the global index when resolveTags
+      // returned [] at read-time (e.g. no merchantId in the filter), so we must
+      // clear both to guarantee full cache consistency.
+      await Promise.all([
+        doInvalidateTags(redis, tags),
+        doInvalidateQueries(redis),
+      ]);
       return;
     }
 
@@ -416,11 +423,13 @@ export function createPrismaRepository<
       data,
       select,
       invalidate = 'queries',
+      tags,
     }: {
       tx?: Prisma.TransactionClient;
       data: TCreateInput;
       select?: T;
       invalidate?: InvalidateMode;
+      tags?: string[] | ((result: Payload<T>) => string[]);
     }): Promise<Payload<T>> {
       return this.processSelectAndCompose(select, async (dbSelect) => {
         const result = await getModel(this.prisma, tx).create({
@@ -428,10 +437,19 @@ export function createPrismaRepository<
           select: dbSelect,
         });
         if (!tx && canInvalidate(this.redis)) {
-          const tags = options.cache?.getTags
-            ? options.cache.getTags(result)
-            : undefined;
-          await runInvalidation(this.redis, invalidate, undefined, tags);
+          const resolvedTags = tags
+            ? typeof tags === 'function'
+              ? tags(options.toPayload<T>(result) as Payload<T>)
+              : tags
+            : options.cache?.getTags
+              ? options.cache.getTags(result)
+              : undefined;
+          await runInvalidation(
+            this.redis,
+            invalidate,
+            undefined,
+            resolvedTags,
+          );
         }
         return options.toPayload<T>(result) as Payload<T>;
       });
@@ -756,12 +774,14 @@ export function createPrismaRepository<
       data,
       select,
       invalidate = 'all',
+      tags,
     }: {
       tx?: Prisma.TransactionClient;
       id: string;
       data: TUpdateInput;
       select?: T;
       invalidate?: InvalidateMode;
+      tags?: string[] | ((result: Payload<T>) => string[]);
     }): Promise<Payload<T>> {
       return this.processSelectAndCompose(select, async (dbSelect) => {
         const result = await getModel(this.prisma, tx).update({
@@ -770,10 +790,14 @@ export function createPrismaRepository<
           select: dbSelect,
         });
         if (!tx && canInvalidate(this.redis)) {
-          const tags = options.cache?.getTags
-            ? options.cache.getTags(result)
-            : undefined;
-          await runInvalidation(this.redis, invalidate, id, tags);
+          const resolvedTags = tags
+            ? typeof tags === 'function'
+              ? tags(options.toPayload<T>(result) as Payload<T>)
+              : tags
+            : options.cache?.getTags
+              ? options.cache.getTags(result)
+              : undefined;
+          await runInvalidation(this.redis, invalidate, id, resolvedTags);
         }
         return options.toPayload<T>(result) as Payload<T>;
       });
@@ -784,11 +808,13 @@ export function createPrismaRepository<
       id,
       select,
       invalidate = 'all',
+      tags,
     }: {
       tx?: Prisma.TransactionClient;
       id: string;
       select?: T;
       invalidate?: InvalidateMode;
+      tags?: string[] | ((result: Payload<T>) => string[]);
     }): Promise<Payload<T>> {
       return this.processSelectAndCompose(select, async (dbSelect) => {
         const result = await getModel(this.prisma, tx).delete({
@@ -796,10 +822,14 @@ export function createPrismaRepository<
           select: dbSelect,
         });
         if (!tx && canInvalidate(this.redis)) {
-          const tags = options.cache?.getTags
-            ? options.cache.getTags(result)
-            : undefined;
-          await runInvalidation(this.redis, invalidate, id, tags);
+          const resolvedTags = tags
+            ? typeof tags === 'function'
+              ? tags(options.toPayload<T>(result) as Payload<T>)
+              : tags
+            : options.cache?.getTags
+              ? options.cache.getTags(result)
+              : undefined;
+          await runInvalidation(this.redis, invalidate, id, resolvedTags);
         }
         return options.toPayload<T>(result) as Payload<T>;
       });

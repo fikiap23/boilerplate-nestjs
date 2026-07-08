@@ -72,7 +72,7 @@ Default (no `setCache`) always hits the database — safe for auth and uniquenes
 
 `getFirst` caches negative results (`NULL_SENTINEL`) when `setCache: true`. Using it on uniqueness checks can cause false negatives under race conditions. Keep uniqueness reads without `setCache`.
 
-## Invalidation Modes
+## Invalidation Modes & Explicit Invalidation Tags
 
 Write methods (`create`, `updateById`, `deleteById`) accept an `invalidate` parameter. Invalidation runs when the repository has `model` + `cache` config.
 
@@ -82,6 +82,22 @@ Write methods (`create`, `updateById`, `deleteById`) accept an `invalidate` para
 | `'entity'` | Invalidate only entity cache for the given id      | —                    |
 | `'queries'`| Invalidate only query caches                       | `create`             |
 | `'none'`   | Skip invalidation entirely                         | —                    |
+
+### Explicit Invalidation Tags
+You can pass an explicit `tags` parameter to any write operation (`create`, `updateById`, `deleteById`) to force invalidation of specific tags, bypassing automatic extraction:
+```typescript
+await this.productRepository.create({
+  data: { ... },
+  tags: ['shop:merchant-A'], // Explicit array
+});
+
+// Or using a callback receiving the updated entity result:
+await this.productRepository.updateById({
+  id,
+  data: { ... },
+  tags: (result) => CacheTags.shop(result.merchantId),
+});
+```
 
 `invalidateCache({ id })` always clears the entity index (if `id` given) **and** the query index.
 

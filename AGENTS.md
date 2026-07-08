@@ -431,7 +431,7 @@ Factory in `src/infrastructure/prisma/create-prisma.repository.ts` produces a cl
 | `invalidateCache` | — | manual, for post-tx |
 
 Read options: `tx?`, `select?`, `setCache?`, `lock?` (only `getById` / `getThrowById`).
-Write options: `tx?`, `invalidate?: 'all' | 'entity' | 'queries' | 'none'`.
+Write options: `tx?`, `invalidate?: 'all' | 'entity' | 'queries' | 'none'`, `tags?: string[] | ((result: any) => string[])`.
 
 All methods support `tx` for transactions — cache is automatically skipped when `tx` is present.
 

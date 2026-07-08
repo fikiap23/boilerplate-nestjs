@@ -10,6 +10,7 @@ import {
 } from '../dto/product.dto';
 import { getProductSelect } from '../types/select-product.type';
 import { whereProductGetManyPaginate } from '../types/where-product.type';
+import { CacheTags } from 'src/common/utils/cache-tag.util';
 
 @Injectable()
 export class ProductService {
@@ -30,6 +31,7 @@ export class ProductService {
         category: { connect: { id: dto.categoryId } },
         merchant: { connect: { id: dto.merchantId } },
       },
+      tags: CacheTags.shop(dto.merchantId),
       select: getProductSelect('general'),
     });
   }
@@ -82,6 +84,7 @@ export class ProductService {
           merchant: { connect: { id: dto.merchantId } },
         }),
       },
+      tags: (result) => CacheTags.shop(result.merchantId),
       select: getProductSelect('general'),
     });
   }
@@ -89,6 +92,7 @@ export class ProductService {
   async handleDeleteById(id: string) {
     return this.productRepository.deleteById({
       id,
+      tags: (result) => CacheTags.shop(result.merchantId),
       select: getProductSelect('general'),
     });
   }

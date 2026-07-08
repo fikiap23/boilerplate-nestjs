@@ -15,10 +15,13 @@ function createMockRedis() {
     isReady: jest.fn().mockReturnValue(true),
     getPrefix: jest.fn().mockReturnValue('test'),
     safeGet: jest.fn().mockResolvedValue(null),
+    safeSet: jest.fn().mockResolvedValue(undefined),
     safeSetWithIndex: jest.fn().mockResolvedValue(undefined),
     safeSetNx: jest.fn().mockResolvedValue(true),
     safeDel: jest.fn().mockResolvedValue(undefined),
     safeInvalidateByIndex: jest.fn().mockResolvedValue(undefined),
+    safeSmembers: jest.fn().mockResolvedValue([]),
+    safeSaddAndExpire: jest.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -33,6 +36,20 @@ const AdminRepo = createPrismaRepository({
   toPayload: <T>(data: unknown) => data as T,
 });
 
+const TaggedRepo = createPrismaRepository({
+  model: 'admin',
+  cache: {
+    ttl: 60,
+    nullTtl: 30,
+    getTags: (entity: any) =>
+      typeof entity?.merchantId === 'string'
+        ? [`shop:${entity.merchantId}`]
+        : [],
+  },
+  getDelegate: () => mockDelegate as never,
+  toPayload: <T>(data: unknown) => data as T,
+});
+
 const NoCacheRepo = createPrismaRepository({
   getDelegate: () => mockDelegate as never,
   toPayload: <T>(data: unknown) => data as T,
@@ -41,11 +58,13 @@ const NoCacheRepo = createPrismaRepository({
 describe('createPrismaRepository cache', () => {
   let redis: ReturnType<typeof createMockRedis>;
   let adminRepo: InstanceType<typeof AdminRepo>;
+  let taggedRepo: InstanceType<typeof TaggedRepo>;
   let noCacheRepo: InstanceType<typeof NoCacheRepo>;
 
   beforeEach(() => {
     redis = createMockRedis();
     adminRepo = new AdminRepo({} as never, redis as never);
+    taggedRepo = new TaggedRepo({} as never, redis as never);
     noCacheRepo = new NoCacheRepo({} as never, redis as never);
     jest.clearAllMocks();
     redis.isReady.mockReturnValue(true);
@@ -192,6 +211,49 @@ describe('createPrismaRepository cache', () => {
     });
 
     expect(redis.safeInvalidateByIndex).toHaveBeenCalledTimes(1);
+    expect(redis.safeInvalidateByIndex).toHaveBeenCalledWith(
+      'test:repo:admin:q:__idx',
+    );
+  });
+
+  it('tag-based write invalidates BOTH tag index and global query index', async () => {
+    mockDelegate.create.mockResolvedValue({
+      id: '1',
+      merchantId: 'merchant-A',
+    });
+
+    await taggedRepo.create({
+      data: { merchantId: 'merchant-A' },
+      tags: ['shop:merchant-A'],
+    });
+
+    // Must sweep tag index (tag-specific queries)
+    expect(redis.safeSmembers).toHaveBeenCalledWith(
+      'test:repo:admin:t:shop:merchant-A:__idx',
+    );
+    // Must ALSO sweep global query index (queries stored without tags)
+    expect(redis.safeInvalidateByIndex).toHaveBeenCalledWith(
+      'test:repo:admin:q:__idx',
+    );
+  });
+
+  it('tag-based update invalidates BOTH tag index and global query index', async () => {
+    mockDelegate.update.mockResolvedValue({
+      id: '1',
+      merchantId: 'merchant-A',
+    });
+
+    await taggedRepo.updateById({
+      id: '1',
+      data: { name: 'New Name' },
+      tags: (result: any) => [`shop:${result.merchantId}`],
+    });
+
+    // Must sweep tag index
+    expect(redis.safeSmembers).toHaveBeenCalledWith(
+      'test:repo:admin:t:shop:merchant-A:__idx',
+    );
+    // Must ALSO sweep global query index
     expect(redis.safeInvalidateByIndex).toHaveBeenCalledWith(
       'test:repo:admin:q:__idx',
     );
