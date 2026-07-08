@@ -12,6 +12,8 @@ export const productSelectPresets = {
     id: true,
     name: true,
     price: true,
+    stock: true,
+    description: true,
     categoryId: true,
     merchantId: true,
     createdAt: true,

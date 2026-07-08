@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -21,6 +22,17 @@ export class CreateProductDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   price: number;
+
+  @ApiProperty({ example: 100 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  stock: number;
+
+  @ApiPropertyOptional({ example: 'This is a description' })
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @ApiProperty({ example: 'uuid-of-category' })
   @IsUUID()
@@ -44,6 +56,18 @@ export class UpdateProductDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   price?: number;
+
+  @ApiPropertyOptional({ example: 120 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  stock?: number;
+
+  @ApiPropertyOptional({ example: 'This is an updated description' })
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @ApiPropertyOptional({ example: 'uuid-of-category' })
   @IsOptional()

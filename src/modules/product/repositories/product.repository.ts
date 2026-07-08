@@ -25,6 +25,15 @@ export const ProductRepository = createPrismaRepository<
   'product'
 >({
   model: 'product',
+  lock: {
+    tableName: 'product',
+    columns: {
+      categoryId: 'category_id',
+      merchantId: 'merchant_id',
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
+    },
+  },
   cache: {
     ttl: 60 * 60 * 24,
     nullTtl: 60,

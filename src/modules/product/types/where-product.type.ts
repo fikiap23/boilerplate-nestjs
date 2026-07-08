@@ -1,5 +1,5 @@
 import { Prisma } from 'src/infrastructure/prisma/prisma-client';
-import { FilterProductDto } from '../dto/product.dto';
+import { FilterProductDto } from '../presentation/dto/product.dto';
 
 export function whereProductGetManyPaginate(filter: FilterProductDto): {
   where: Prisma.ProductWhereInput;

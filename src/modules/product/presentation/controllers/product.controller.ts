@@ -20,7 +20,7 @@ import { formatResponse } from 'src/common/utils/http.helper';
 import { errorHandler } from 'src/common/utils/validation.helper';
 import { validateUUID } from 'src/common/utils/helper.common';
 
-import { ProductService } from '../services/product.service';
+import { ProductService } from '../../application/services/product.service';
 import {
   CreateProductDto,
   FilterProductDto,
