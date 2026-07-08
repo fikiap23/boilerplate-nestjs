@@ -18,6 +18,7 @@ export const productSelectPresets = {
       select: {
         id: true,
         name: true,
+        slug: true,
       },
     },
   } satisfies Prisma.ProductSelect,

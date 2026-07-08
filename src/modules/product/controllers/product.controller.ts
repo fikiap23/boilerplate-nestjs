@@ -48,7 +48,6 @@ export class ProductController {
     }
   }
 
-  @UseGuards(JwtGuard)
   @Get('paginate')
   @SwaggerEndpoint({
     summary: 'Get product list with pagination',
@@ -66,7 +65,6 @@ export class ProductController {
     }
   }
 
-  @UseGuards(JwtGuard)
   @Get(':id')
   @SwaggerEndpoint({
     summary: 'Get product by ID',
