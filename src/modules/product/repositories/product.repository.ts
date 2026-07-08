@@ -1,8 +1,10 @@
+import { forwardRef } from '@nestjs/common';
 import { Prisma } from 'src/infrastructure/prisma/prisma-client';
 import {
   createPrismaRepository,
   PrismaRepositoryInstance,
 } from 'src/infrastructure/prisma/create-prisma.repository';
+import { ProductComposeHelper } from '../helpers/product-compose.helper';
 
 export type ProductPayload<T extends Prisma.ProductSelect> =
   Prisma.ProductGetPayload<{
@@ -35,6 +37,8 @@ export const ProductRepository = createPrismaRepository<
   getDelegate: (client) => client.product,
   toPayload: <T extends Prisma.ProductSelect>(data: unknown) =>
     data as ProductPayload<T>,
+  scalarFields: Prisma.ProductScalarFieldEnum,
+  composeHelperToken: forwardRef(() => ProductComposeHelper),
 });
 
 export type ProductRepository = PrismaRepositoryInstance<
