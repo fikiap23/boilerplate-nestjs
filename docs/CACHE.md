@@ -179,7 +179,7 @@ Prefer `make cache-keys` over `KEYS` in production-like environments (`KEYS` blo
 
 ## Nested Relations (Product + Category)
 
-Do not cache nested relations in a single select. Compose flat entities in service — see `src/modules/product/helpers/product-category-compose.helper.ts`.
+Do not query and cache nested relations directly in a single repository select query. Instead, use `splitSelect` (see [helper.common.ts](file:///home/fikiap23/sasana/kalventis/boilerplate-nest/src/common/utils/helper.common.ts)) to separate flat DB columns from relations, and compose them in the service layer using a helper class extending `BaseComposeHelper` (see [product-compose.helper.ts](file:///home/fikiap23/sasana/kalventis/boilerplate-nest/src/modules/product/helpers/product-compose.helper.ts)). This preserves independent cache-aside lifecycle and invalidation rules for both entities.
 
 ## Checklist for New Repository Modules
 

@@ -374,7 +374,7 @@ Applies to **every** feature module (`admin`, `auth`, `product`, `master-data`, 
 
 - Service **only** contains `handle*` methods — one method per endpoint/use case.
 - Other logic (uniqueness validation, relation compose for API response, DTO mapping, pre-delete guards) → `helpers/*.helper.ts`.
-- File naming: `{feature}-{responsibility}.helper.ts` (e.g. `product-category-compose.helper.ts`).
+- File naming: `{feature}-{responsibility}.helper.ts` (e.g. `product-compose.helper.ts`).
 - Responsibility suffixes: `validate`, `compose`, `mapper`, `guard`, `loader`.
 - Helper classes: `@Injectable()`, register in module `providers` (export only if used by another module).
 - **Do not** use `.repository.ts` suffix for helpers — `repositories/` is reserved for `createPrismaRepository`.
@@ -383,22 +383,25 @@ Applies to **every** feature module (`admin`, `auth`, `product`, `master-data`, 
 ```typescript
 // services/product.service.ts — handle* only
 async handleGetById(id: string) {
+  const { dbSelect, relations } = splitProductSelect(getProductSelect('general'));
   const product = await this.productRepository.getThrowById({
     id,
-    select: getProductSelect('general'),
+    select: dbSelect,
     setCache: true,
   });
-  return this.productCategoryComposeHelper.composeOne(product);
+  return this.productComposeHelper.composeOne(product, relations);
 }
 
-// helpers/product-category-compose.helper.ts
+// helpers/product-compose.helper.ts
 @Injectable()
-export class ProductCategoryComposeHelper {
-  constructor(private readonly categoryRepository: CategoryRepository) {}
-
-  async composeOne<T extends { categoryId: string }>(product: T) {
-    const category = await this.categoryRepository.getThrowById({ ... });
-    return { ...product, category };
+export class ProductComposeHelper extends BaseComposeHelper {
+  constructor(private readonly categoryRepository: CategoryRepository) {
+    super({
+      category: {
+        repository: categoryRepository,
+        type: 'one',
+      },
+    });
   }
 }
 ```
