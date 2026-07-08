@@ -448,19 +448,22 @@ export function createPrismaRepository<
       });
     }
 
-    async getById<T extends TSelect>({
-      tx,
-      id,
-      select,
-      setCache,
-      lock,
-    }: {
-      tx?: Prisma.TransactionClient;
-      id: string;
-      select?: T;
-      setCache?: boolean;
-      lock?: RowLockOptions;
-    }): Promise<Payload<T>> {
+    async getById<
+      T extends TSelect,
+      P extends {
+        id: string;
+        select?: T;
+        tx?: Prisma.TransactionClient;
+        lock?: RowLockOptions;
+        setCache?: boolean;
+      },
+    >(
+      params: P &
+        (P extends { lock: object }
+          ? { tx: Prisma.TransactionClient; setCache?: never }
+          : unknown),
+    ): Promise<Payload<T>> {
+      const { tx, id, select, setCache, lock } = params as any;
       return this.processSelectAndCompose(select, async (dbSelect) => {
         if (lock) {
           assertLockPrerequisites(tx, lockConfig);
@@ -508,19 +511,22 @@ export function createPrismaRepository<
       });
     }
 
-    async getThrowById<T extends TSelect>({
-      tx,
-      id,
-      select,
-      setCache,
-      lock,
-    }: {
-      tx?: Prisma.TransactionClient;
-      id: string;
-      select?: T;
-      setCache?: boolean;
-      lock?: RowLockOptions;
-    }): Promise<Payload<T>> {
+    async getThrowById<
+      T extends TSelect,
+      P extends {
+        id: string;
+        select?: T;
+        tx?: Prisma.TransactionClient;
+        lock?: RowLockOptions;
+        setCache?: boolean;
+      },
+    >(
+      params: P &
+        (P extends { lock: object }
+          ? { tx: Prisma.TransactionClient; setCache?: never }
+          : unknown),
+    ): Promise<Payload<T>> {
+      const { tx, id, select, setCache, lock } = params as any;
       return this.processSelectAndCompose(select, async (dbSelect) => {
         if (lock) {
           assertLockPrerequisites(tx, lockConfig);
