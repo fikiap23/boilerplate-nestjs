@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from 'src/infrastructure/prisma/prisma-client';
 
-import { ProductCategoryComposeHelper } from '../helpers/product-category-compose.helper';
+import { ProductComposeHelper } from '../helpers/product-compose.helper';
 import { ProductCategoryValidateHelper } from '../helpers/product-category-validate.helper';
 import { ProductRepository } from '../repositories/product.repository';
 import {
@@ -9,7 +9,10 @@ import {
   FilterProductDto,
   UpdateProductDto,
 } from '../dto/product.dto';
-import { getProductSelect } from '../types/select-product.type';
+import {
+  getProductSelect,
+  splitProductSelect,
+} from '../types/select-product.type';
 import { whereProductGetManyPaginate } from '../types/where-product.type';
 
 @Injectable()
@@ -17,7 +20,7 @@ export class ProductService {
   constructor(
     private readonly productRepository: ProductRepository,
     private readonly productCategoryValidateHelper: ProductCategoryValidateHelper,
-    private readonly productCategoryComposeHelper: ProductCategoryComposeHelper,
+    private readonly productComposeHelper: ProductComposeHelper,
   ) {}
 
   async handleCreate(dto: CreateProductDto) {
@@ -25,35 +28,44 @@ export class ProductService {
       dto.categoryId,
     );
 
+    const { dbSelect, relations } = splitProductSelect(
+      getProductSelect('general'),
+    );
     const created = await this.productRepository.create({
       data: {
         name: dto.name,
         price: new Prisma.Decimal(dto.price),
         category: { connect: { id: dto.categoryId } },
       },
-      select: getProductSelect('general'),
+      select: dbSelect,
     });
 
-    return this.productCategoryComposeHelper.composeOne(created);
+    return this.productComposeHelper.composeOne(created, relations);
   }
 
   async handleGetById(id: string) {
+    const { dbSelect, relations } = splitProductSelect(
+      getProductSelect('general'),
+    );
     const product = await this.productRepository.getThrowById({
       id,
-      select: getProductSelect('general'),
+      select: dbSelect,
       setCache: true,
     });
 
-    return this.productCategoryComposeHelper.composeOne(product);
+    return this.productComposeHelper.composeOne(product, relations);
   }
 
   async handleGetManyPaginate(dto: FilterProductDto) {
     const { sort = 'desc', page = 1, limit = 10 } = dto;
     const { where } = whereProductGetManyPaginate(dto);
+    const { dbSelect, relations } = splitProductSelect(
+      getProductSelect('general'),
+    );
 
     const result = await this.productRepository.getManyPaginate({
       where,
-      select: getProductSelect('general'),
+      select: dbSelect,
       orderBy: { createdAt: sort },
       page,
       limit,
@@ -61,15 +73,18 @@ export class ProductService {
     });
 
     return {
-      data: await this.productCategoryComposeHelper.composeMany(result.data),
+      data: await this.productComposeHelper.composeMany(result.data, relations),
       meta: result.meta,
     };
   }
 
   async handleUpdateById(id: string, dto: UpdateProductDto) {
+    const { dbSelect, relations } = splitProductSelect(
+      getProductSelect('general'),
+    );
     const current = await this.productRepository.getThrowById({
       id,
-      select: getProductSelect('general'),
+      select: dbSelect,
     });
 
     if (dto.categoryId) {
@@ -89,18 +104,21 @@ export class ProductService {
           category: { connect: { id: dto.categoryId } },
         }),
       },
-      select: getProductSelect('general'),
+      select: dbSelect,
     });
 
-    return this.productCategoryComposeHelper.composeOne(updated);
+    return this.productComposeHelper.composeOne(updated, relations);
   }
 
   async handleDeleteById(id: string) {
+    const { dbSelect, relations } = splitProductSelect(
+      getProductSelect('general'),
+    );
     const deleted = await this.productRepository.deleteById({
       id,
-      select: getProductSelect('general'),
+      select: dbSelect,
     });
 
-    return this.productCategoryComposeHelper.composeOne(deleted);
+    return this.productComposeHelper.composeOne(deleted, relations);
   }
 }

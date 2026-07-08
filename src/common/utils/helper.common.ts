@@ -17,3 +17,38 @@ export const validateUUID = (id: string, model: string) => {
     });
   }
 };
+
+/**
+ * Splits a Prisma select object into flat DB columns and relations.
+ * Automatically resolves the foreign key (e.g. category -> categoryId)
+ * if it exists in the model's scalar fields.
+ *
+ * @param select - The Prisma select preset object
+ * @param scalarFieldEnum - The Prisma model's ScalarFieldEnum object (e.g. Prisma.ProductScalarFieldEnum)
+ */
+export function splitSelect<T extends object>(
+  select: T,
+  scalarFieldEnum: Record<string, string>,
+) {
+  const dbSelect: Record<string, any> = {};
+  const relations: Record<string, any> = {};
+  const scalarFields = new Set(Object.keys(scalarFieldEnum));
+
+  for (const [key, value] of Object.entries(select)) {
+    if (value && typeof value === 'object') {
+      relations[key] = value;
+      // Resolve foreign key name (camelCase, e.g. category -> categoryId)
+      const foreignKey = `${key}Id`;
+      if (scalarFields.has(foreignKey)) {
+        dbSelect[foreignKey] = true;
+      }
+    } else {
+      dbSelect[key] = value;
+    }
+  }
+
+  return {
+    dbSelect: dbSelect as T,
+    relations,
+  };
+}

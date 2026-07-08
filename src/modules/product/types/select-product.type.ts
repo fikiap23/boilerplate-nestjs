@@ -1,10 +1,5 @@
 import { Prisma } from 'src/infrastructure/prisma/prisma-client';
-
-type ProductSelectPresetKey = keyof typeof productSelectPresets;
-
-export function getProductSelect<K extends ProductSelectPresetKey>(key: K) {
-  return productSelectPresets[key];
-}
+import { splitSelect } from 'src/common/utils/helper.common';
 
 export const productSelectPresets = {
   minimal: {
@@ -19,5 +14,21 @@ export const productSelectPresets = {
     categoryId: true,
     createdAt: true,
     updatedAt: true,
+    category: {
+      select: {
+        id: true,
+        name: true,
+      },
+    },
   } satisfies Prisma.ProductSelect,
 };
+
+type ProductSelectPresetKey = keyof typeof productSelectPresets;
+
+export function getProductSelect<K extends ProductSelectPresetKey>(key: K) {
+  return productSelectPresets[key];
+}
+
+export function splitProductSelect(select: Prisma.ProductSelect) {
+  return splitSelect(select, Prisma.ProductScalarFieldEnum);
+}
