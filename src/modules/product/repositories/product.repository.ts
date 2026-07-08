@@ -27,12 +27,12 @@ export const ProductRepository = createPrismaRepository<
 >({
   model: 'product',
   cache: {
-    ttl: 300,
+    ttl: 60 * 60 * 24,
     nullTtl: 60,
     sensitiveFields: [],
     methods: {
-      getManyPaginate: { ttl: 60 },
-      getMany: { ttl: 60 },
+      getManyPaginate: { ttl: 60 * 60 * 24 },
+      getMany: { ttl: 60 * 60 * 24 },
     },
     getTags: (product: any) => CacheTags.shop(product.merchantId),
   },

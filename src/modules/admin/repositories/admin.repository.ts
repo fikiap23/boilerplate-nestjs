@@ -28,12 +28,12 @@ export const AdminRepository = createPrismaRepository<
     columns: { createdAt: 'created_at', lastLoginAt: 'last_login_at' },
   },
   cache: {
-    ttl: 300,
+    ttl: 60 * 60 * 24,
     nullTtl: 60,
     sensitiveFields: ['password'],
     methods: {
-      getManyPaginate: { ttl: 60 },
-      getMany: { ttl: 60 },
+      getManyPaginate: { ttl: 60 * 60 * 24 },
+      getMany: { ttl: 60 * 60 * 24 },
     },
   },
   getDelegate: (client) => client.admin,
