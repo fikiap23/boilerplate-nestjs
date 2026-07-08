@@ -269,14 +269,16 @@ export function createPrismaRepository<
     tags: string[],
   ): Promise<void> {
     const prefix = getPrefix(redis);
-    const globalIdxKey = queryIndexKey(prefix, modelName);
-
+    // Tagged queries are only registered in their tag-specific index.
+    // Do NOT also add them to the global query index (q:__idx) — that
+    // would cause all tagged queries to be wiped on any tag-based
+    // write (e.g. creating a product for merchant-B would delete the
+    // cached query for merchant-A).
     const promises = tags.map((tag) => {
       const idxKey = `${prefix}:repo:${modelName}:t:${tag}:__idx`;
       return redis.safeSaddAndExpire(idxKey, [key], ttlSeconds);
     });
 
-    promises.push(redis.safeSaddAndExpire(globalIdxKey, [key], ttlSeconds));
     await Promise.all(promises);
   }
 

@@ -55,6 +55,7 @@ export class ProductService {
       page,
       limit,
       setCache: true,
+      cacheTags: CacheTags.merchant(dto.merchantId),
     });
   }
 

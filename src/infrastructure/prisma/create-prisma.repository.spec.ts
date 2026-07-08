@@ -258,4 +258,62 @@ describe('createPrismaRepository cache', () => {
       'test:repo:admin:q:__idx',
     );
   });
+
+  it('tagged getManyPaginate cache is stored ONLY in tag index, not global index', async () => {
+    mockDelegate.findMany.mockResolvedValue([
+      { id: '1', merchantId: 'merchant-A' },
+    ]);
+
+    // Manually trigger paginator stub — we test getMany which uses the same path
+    await taggedRepo.getMany({
+      where: { merchantId: 'merchant-A' } as any,
+      select: { id: true } as any,
+      setCache: true,
+      cacheTags: ['merchant:merchant-A'],
+    });
+
+    // Should be registered in the tag-specific index
+    expect(redis.safeSaddAndExpire).toHaveBeenCalledWith(
+      'test:repo:admin:t:merchant:merchant-A:__idx',
+      expect.any(Array),
+      expect.any(Number),
+    );
+    // Must NOT be registered in the global query index
+    expect(redis.safeSaddAndExpire).not.toHaveBeenCalledWith(
+      'test:repo:admin:q:__idx',
+      expect.any(Array),
+      expect.any(Number),
+    );
+  });
+
+  it('creating product for merchant-B does NOT invalidate tag-indexed cache for merchant-A', async () => {
+    mockDelegate.create.mockResolvedValue({
+      id: '2',
+      merchantId: 'merchant-B',
+    });
+
+    // Simulate merchant-A cache key existing under its tag index
+    const merchantATagIdx = 'test:repo:admin:t:merchant:merchant-A:__idx';
+    const merchantBTagIdx = 'test:repo:admin:t:merchant:merchant-B:__idx';
+    redis.safeSmembers.mockImplementation((key: string) => {
+      if (key === merchantATagIdx) return Promise.resolve(['query:merchant-A']);
+      if (key === merchantBTagIdx) return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+
+    await taggedRepo.create({
+      data: { merchantId: 'merchant-B' },
+      tags: ['merchant:merchant-B'],
+    });
+
+    // safeSmembers should only be called for merchant-B tag index, NOT merchant-A
+    expect(redis.safeSmembers).toHaveBeenCalledWith(merchantBTagIdx);
+    expect(redis.safeSmembers).not.toHaveBeenCalledWith(merchantATagIdx);
+
+    // The merchant-A cache key must NOT be deleted
+    const allDelArgs = (redis.safeDel as jest.Mock).mock.calls.flatMap(
+      (call: any[]) => call,
+    );
+    expect(allDelArgs).not.toContain('query:merchant-A');
+  });
 });
