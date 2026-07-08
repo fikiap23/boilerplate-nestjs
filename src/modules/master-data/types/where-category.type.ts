@@ -1,5 +1,5 @@
 import { Prisma } from 'src/infrastructure/prisma/prisma-client';
-import { FilterCategoryDto } from '../dto/category.dto';
+import { FilterCategoryDto } from '../presentation/dto/category.dto';
 
 export function whereCategoryGetManyPaginate(filter: FilterCategoryDto): {
   where: Prisma.CategoryWhereInput;

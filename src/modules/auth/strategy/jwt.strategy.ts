@@ -1,15 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { IPayloadJWT } from 'src/shared/interfaces/auth.interface';
-import { AdminRepository } from 'src/modules/admin/repositories/admin.repository';
+import { IAdminRepository } from 'src/modules/admin/domain/repositories/admin.repository.interface';
 import { getAdminSelect } from 'src/modules/admin/types/select-admin.type';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
-    private readonly adminRepository: AdminRepository,
+    @Inject('IAdminRepository')
+    private readonly adminRepository: IAdminRepository,
     configService: ConfigService,
   ) {
     super({

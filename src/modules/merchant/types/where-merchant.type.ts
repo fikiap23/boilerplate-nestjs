@@ -1,5 +1,5 @@
 import { Prisma } from 'src/infrastructure/prisma/prisma-client';
-import { FilterMerchantDto } from '../dto/merchant.dto';
+import { FilterMerchantDto } from '../presentation/dto/merchant.dto';
 
 export function whereMerchantGetManyPaginate(filter: FilterMerchantDto): {
   where: Prisma.MerchantWhereInput;

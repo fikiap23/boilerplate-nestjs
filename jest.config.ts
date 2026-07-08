@@ -6,4 +6,5 @@ export default {
     '^src/(.*)$': '<rootDir>/src/$1',
     '^prisma/(.*)$': '<rootDir>/prisma/$1',
   },
+  testPathIgnorePatterns: ['<rootDir>/build/'],
 };

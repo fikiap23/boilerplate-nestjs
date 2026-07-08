@@ -1,5 +1,5 @@
 import { Prisma } from 'src/infrastructure/prisma/prisma-client';
-import { FilterAdminDto } from '../dto/admin.dto';
+import { FilterAdminDto } from '../presentation/dto/admin.dto';
 
 export function whereAdminGetManyPaginate(filter: FilterAdminDto): {
   where: Prisma.AdminWhereInput;

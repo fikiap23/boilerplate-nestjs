@@ -1,0 +1,5 @@
+import { CategoryClientResponse } from './category.response';
+
+export abstract class CategoryClient {
+  abstract getCategory(id: string): Promise<CategoryClientResponse | null>;
+}

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { CustomError } from 'src/common/exceptions/custom-error';
 import { compareBcrypt, hashBcrypt } from 'src/common/utils/bcrypt.util';
-import { UpdateProfileAdminDto } from '../dto/admin.dto';
+import { UpdateProfileAdminDto } from '../presentation/dto/admin.dto';
 
 @Injectable()
 export class AdminProfilePasswordHelper {
