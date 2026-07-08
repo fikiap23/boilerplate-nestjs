@@ -170,17 +170,20 @@ export const FeatureRepository = createPrismaRepository<
     columns: { createdAt: 'created_at' }, // all scalar fields with @map
   },
   cache: {
-    ttl: 300,
+    ttl: 60 * 60 * 24,
     nullTtl: 60,
     sensitiveFields: ['password'],
     methods: {
-      getManyPaginate: { ttl: 60 },
-      getMany: { ttl: 60 },
+      getManyPaginate: { ttl: 60 * 60 * 24 },
+      getMany: { ttl: 60 * 60 * 24 },
     },
+    getTags: (feature: any) => CacheTags.shop(feature.merchantId), // Optional: multi-tenant tag resolution
   },
   getDelegate: (client) => client.feature,
   toPayload: <T extends Prisma.FeatureSelect>(data: unknown) =>
     data as FeaturePayload<T>,
+  scalarFields: Prisma.FeatureScalarFieldEnum,
+  composeHelperToken: forwardRef(() => FeatureComposeHelper),
 });
 
 export type FeatureRepository = PrismaRepositoryInstance<
@@ -383,22 +386,27 @@ Applies to **every** feature module (`admin`, `auth`, `product`, `master-data`, 
 ```typescript
 // services/product.service.ts — handle* only
 async handleGetById(id: string) {
-  const { dbSelect, relations } = splitProductSelect(getProductSelect('general'));
-  const product = await this.productRepository.getThrowById({
+  return this.productRepository.getThrowById({
     id,
-    select: dbSelect,
+    select: getProductSelect('general'),
     setCache: true,
   });
-  return this.productComposeHelper.composeOne(product, relations);
 }
 
 // helpers/product-compose.helper.ts
 @Injectable()
 export class ProductComposeHelper extends BaseComposeHelper {
-  constructor(private readonly categoryRepository: CategoryRepository) {
+  constructor(
+    private readonly categoryRepository: CategoryRepository,
+    private readonly merchantRepository: MerchantRepository,
+  ) {
     super({
       category: {
         repository: categoryRepository,
+        type: 'one',
+      },
+      merchant: {
+        repository: merchantRepository,
         type: 'one',
       },
     });

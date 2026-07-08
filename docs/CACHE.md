@@ -177,16 +177,65 @@ docker exec boilerplate-nest-redis-dev redis-cli SMEMBERS "bn:repo:admin:q:__idx
 
 Prefer `make cache-keys` over `KEYS` in production-like environments (`KEYS` blocks Redis).
 
-## Nested Relations (Product + Category)
+## Automatic Nested Relations & Cache Tagging
 
-Do not query and cache nested relations directly in a single repository select query. Instead, use `splitSelect` (see [helper.common.ts](file:///home/fikiap23/sasana/kalventis/boilerplate-nest/src/common/utils/helper.common.ts)) to separate flat DB columns from relations, and compose them in the service layer using a helper class extending `BaseComposeHelper` (see [product-compose.helper.ts](file:///home/fikiap23/sasana/kalventis/boilerplate-nest/src/modules/product/helpers/product-compose.helper.ts)). This preserves independent cache-aside lifecycle and invalidation rules for both entities.
+We support automatic, transparent nested relation composition at the repository layer.
+
+### 1. Repository Configuration (Automated Compose)
+Instead of composing relations in the service layer, configure `scalarFields` and `composeHelperToken` in the repository factory:
+```typescript
+export const ProductRepository = createPrismaRepository<... >({
+  model: 'product',
+  cache: {
+    ttl: 60 * 60 * 24,
+    nullTtl: 60,
+    sensitiveFields: [],
+    getTags: (product: any) => CacheTags.shop(product.merchantId),
+  },
+  getDelegate: (client) => client.product,
+  toPayload: <T extends Prisma.ProductSelect>(data: unknown) =>
+    data as ProductPayload<T>,
+  scalarFields: Prisma.ProductScalarFieldEnum,
+  composeHelperToken: forwardRef(() => ProductComposeHelper),
+});
+```
+
+### 2. Service Layer remains Clean
+Since the repository handles select splitting and helper composition under the hood, the service layer simply calls standard repository CRUD methods without boilerplate:
+```typescript
+async handleGetById(id: string) {
+  return this.productRepository.getThrowById({
+    id,
+    select: getProductSelect('general'),
+    setCache: true,
+  });
+}
+```
+
+### 3. Type-Safe Cache Tagging & Automated Resolution
+For tenant-scoped cache invalidation (like multi-merchant shops):
+1. **Define central tags** in `src/common/utils/cache-tag.util.ts`:
+   ```typescript
+   export const CacheTags = {
+     shop: (merchantId: unknown): string[] =>
+       typeof merchantId === 'string' ? [`shop:${merchantId}`] : [],
+   };
+   ```
+2. **Configure `getTags` in the repository cache options**:
+   ```typescript
+   getTags: (product: any) => CacheTags.shop(product.merchantId),
+   ```
+3. **Automated Read Resolution**:
+   When querying lists via `getManyPaginate` with `setCache: true`, the repository automatically runs `getTags(where)` on the filter query to tag cached results. No manual `cacheTags` property is required in the service!
+4. **Automated Write Invalidation**:
+   When writing data (create, update, delete), the repository runs `getTags` on the database returned record to dynamically invalidate only that tenant's tagged cache keys in Redis.
 
 ## Checklist for New Repository Modules
 
 1. Run `yarn gen:module <name> --cache` or add `model` + `cache: { ttl, ... }` to `createPrismaRepository`.
 2. Register the model in `PrismaSelectPayloadMap` (generator does this with `--cache`).
 3. Create select presets — `general` without sensitive fields; `withPassword` for internal auth.
-4. Add `setCache: true` only on user-facing reads in services/helpers.
+4. Add `setCache: true` only on user-facing reads in services.
 5. Use `invalidate: 'none'` for metadata-only updates.
 6. In transactions: `afterCommit` → `invalidateCache`.
 7. Never use `setCache: true` on auth/uniqueness `getFirst`.
