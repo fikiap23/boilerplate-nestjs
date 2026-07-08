@@ -325,14 +325,15 @@ export function createPrismaRepository<
     redis: RedisService,
     mode: InvalidateMode,
     id?: string,
-    tags?: string[],
+    tags?: string[] | null,
   ): Promise<void> {
-    if (tags && tags.length > 0) {
+    // tags = string[] → tag-based invalidation + global query sweep
+    // tags = null | undefined → fall through to mode (global)
+    if (Array.isArray(tags) && tags.length > 0) {
       if (id) await doInvalidateEntity(redis, id);
-      // Invalidate tag-indexed queries AND also sweep the global query index.
-      // Queries may have been stored under the global index when resolveTags
-      // returned [] at read-time (e.g. no merchantId in the filter), so we must
-      // clear both to guarantee full cache consistency.
+      // Sweep tag-indexed queries AND also the global query index.
+      // Queries may have been stored under the global index when cacheTags
+      // returned [] at read-time (e.g. no merchantId in the filter).
       await Promise.all([
         doInvalidateTags(redis, tags),
         doInvalidateQueries(redis),
@@ -356,18 +357,12 @@ export function createPrismaRepository<
     }
   }
 
-  function resolveTags(where: any, cacheTags: any): string[] | undefined {
-    if (cacheTags) {
-      return typeof cacheTags === 'function' ? cacheTags(where) : cacheTags;
-    }
-    if (options.cache?.getTags && where) {
-      try {
-        return options.cache.getTags(where);
-      } catch {
-        return undefined;
-      }
-    }
-    return undefined;
+  function resolveTags(
+    where: any,
+    cacheTags?: string[] | ((where?: any) => string[]),
+  ): string[] | undefined {
+    if (!cacheTags) return undefined;
+    return typeof cacheTags === 'function' ? cacheTags(where) : cacheTags;
   }
 
   const DUMMY_COMPOSE_TOKEN = 'DUMMY_COMPOSE_TOKEN';
@@ -429,7 +424,8 @@ export function createPrismaRepository<
       data: TCreateInput;
       select?: T;
       invalidate?: InvalidateMode;
-      tags?: string[] | ((result: Payload<T>) => string[]);
+      /** Required. Pass string[] to invalidate by tag, or null for global invalidation. */
+      tags: string[] | null | ((result: Payload<T>) => string[] | null);
     }): Promise<Payload<T>> {
       return this.processSelectAndCompose(select, async (dbSelect) => {
         const result = await getModel(this.prisma, tx).create({
@@ -437,18 +433,15 @@ export function createPrismaRepository<
           select: dbSelect,
         });
         if (!tx && canInvalidate(this.redis)) {
-          const resolvedTags = tags
-            ? typeof tags === 'function'
+          const resolvedTags =
+            typeof tags === 'function'
               ? tags(options.toPayload<T>(result) as Payload<T>)
-              : tags
-            : options.cache?.getTags
-              ? options.cache.getTags(result)
-              : undefined;
+              : tags;
           await runInvalidation(
             this.redis,
             invalidate,
             undefined,
-            resolvedTags,
+            resolvedTags ?? undefined,
           );
         }
         return options.toPayload<T>(result) as Payload<T>;
@@ -781,7 +774,8 @@ export function createPrismaRepository<
       data: TUpdateInput;
       select?: T;
       invalidate?: InvalidateMode;
-      tags?: string[] | ((result: Payload<T>) => string[]);
+      /** Required. Pass string[] to invalidate by tag, or null for global invalidation. */
+      tags: string[] | null | ((result: Payload<T>) => string[] | null);
     }): Promise<Payload<T>> {
       return this.processSelectAndCompose(select, async (dbSelect) => {
         const result = await getModel(this.prisma, tx).update({
@@ -790,14 +784,16 @@ export function createPrismaRepository<
           select: dbSelect,
         });
         if (!tx && canInvalidate(this.redis)) {
-          const resolvedTags = tags
-            ? typeof tags === 'function'
+          const resolvedTags =
+            typeof tags === 'function'
               ? tags(options.toPayload<T>(result) as Payload<T>)
-              : tags
-            : options.cache?.getTags
-              ? options.cache.getTags(result)
-              : undefined;
-          await runInvalidation(this.redis, invalidate, id, resolvedTags);
+              : tags;
+          await runInvalidation(
+            this.redis,
+            invalidate,
+            id,
+            resolvedTags ?? undefined,
+          );
         }
         return options.toPayload<T>(result) as Payload<T>;
       });
@@ -814,7 +810,8 @@ export function createPrismaRepository<
       id: string;
       select?: T;
       invalidate?: InvalidateMode;
-      tags?: string[] | ((result: Payload<T>) => string[]);
+      /** Required. Pass string[] to invalidate by tag, or null for global invalidation. */
+      tags: string[] | null | ((result: Payload<T>) => string[] | null);
     }): Promise<Payload<T>> {
       return this.processSelectAndCompose(select, async (dbSelect) => {
         const result = await getModel(this.prisma, tx).delete({
@@ -822,14 +819,16 @@ export function createPrismaRepository<
           select: dbSelect,
         });
         if (!tx && canInvalidate(this.redis)) {
-          const resolvedTags = tags
-            ? typeof tags === 'function'
+          const resolvedTags =
+            typeof tags === 'function'
               ? tags(options.toPayload<T>(result) as Payload<T>)
-              : tags
-            : options.cache?.getTags
-              ? options.cache.getTags(result)
-              : undefined;
-          await runInvalidation(this.redis, invalidate, id, resolvedTags);
+              : tags;
+          await runInvalidation(
+            this.redis,
+            invalidate,
+            id,
+            resolvedTags ?? undefined,
+          );
         }
         return options.toPayload<T>(result) as Payload<T>;
       });

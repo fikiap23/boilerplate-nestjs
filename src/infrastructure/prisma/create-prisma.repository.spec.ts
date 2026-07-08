@@ -41,10 +41,6 @@ const TaggedRepo = createPrismaRepository({
   cache: {
     ttl: 60,
     nullTtl: 30,
-    getTags: (entity: any) =>
-      typeof entity?.merchantId === 'string'
-        ? [`shop:${entity.merchantId}`]
-        : [],
   },
   getDelegate: () => mockDelegate as never,
   toPayload: <T>(data: unknown) => data as T,
@@ -175,6 +171,7 @@ describe('createPrismaRepository cache', () => {
     await adminRepo.updateById({
       id: '1',
       data: { name: 'Updated' },
+      tags: null,
     });
 
     expect(redis.safeInvalidateByIndex).toHaveBeenCalled();
@@ -186,6 +183,7 @@ describe('createPrismaRepository cache', () => {
     await noCacheRepo.updateById({
       id: '1',
       data: { name: 'Updated' },
+      tags: null,
     });
 
     expect(redis.safeInvalidateByIndex).not.toHaveBeenCalled();
@@ -198,16 +196,18 @@ describe('createPrismaRepository cache', () => {
       id: '1',
       data: { lastLoginAt: new Date() },
       invalidate: 'none',
+      tags: null,
     });
 
     expect(redis.safeInvalidateByIndex).not.toHaveBeenCalled();
   });
 
-  it('invalidates queries only on create by default', async () => {
+  it('invalidates queries only on create when tags=null', async () => {
     mockDelegate.create.mockResolvedValue({ id: '1' });
 
     await adminRepo.create({
       data: { email: 'a@b.com' },
+      tags: null,
     });
 
     expect(redis.safeInvalidateByIndex).toHaveBeenCalledTimes(1);
@@ -224,12 +224,12 @@ describe('createPrismaRepository cache', () => {
 
     await taggedRepo.create({
       data: { merchantId: 'merchant-A' },
-      tags: ['shop:merchant-A'],
+      tags: ['merchant:merchant-A'],
     });
 
     // Must sweep tag index (tag-specific queries)
     expect(redis.safeSmembers).toHaveBeenCalledWith(
-      'test:repo:admin:t:shop:merchant-A:__idx',
+      'test:repo:admin:t:merchant:merchant-A:__idx',
     );
     // Must ALSO sweep global query index (queries stored without tags)
     expect(redis.safeInvalidateByIndex).toHaveBeenCalledWith(
@@ -246,12 +246,12 @@ describe('createPrismaRepository cache', () => {
     await taggedRepo.updateById({
       id: '1',
       data: { name: 'New Name' },
-      tags: (result: any) => [`shop:${result.merchantId}`],
+      tags: (result: any) => [`merchant:${result.merchantId}`],
     });
 
     // Must sweep tag index
     expect(redis.safeSmembers).toHaveBeenCalledWith(
-      'test:repo:admin:t:shop:merchant-A:__idx',
+      'test:repo:admin:t:merchant:merchant-A:__idx',
     );
     // Must ALSO sweep global query index
     expect(redis.safeInvalidateByIndex).toHaveBeenCalledWith(

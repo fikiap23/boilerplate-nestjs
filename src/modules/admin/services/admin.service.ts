@@ -38,6 +38,7 @@ export class AdminService {
         role: dto.role ?? EAdminRole.ADMIN,
         status: dto.status ?? EAdminStatus.INACTIVE,
       },
+      tags: null,
     });
   }
 
@@ -91,6 +92,7 @@ export class AdminService {
         ...(dto.status && { status: dto.status }),
         ...(passwordHash && { password: passwordHash }),
       },
+      tags: null,
     });
   }
 
@@ -120,6 +122,7 @@ export class AdminService {
         ...(dto.email && { email: dto.email }),
         ...(passwordHash && { password: passwordHash }),
       },
+      tags: null,
     });
 
     return null;
@@ -128,6 +131,6 @@ export class AdminService {
   async handleDeleteById(sub: string, id: string) {
     await this.adminRoleGuardHelper.assertSuperAdmin(sub);
 
-    return await this.adminRepository.deleteById({ id });
+    return await this.adminRepository.deleteById({ id, tags: null });
   }
 }

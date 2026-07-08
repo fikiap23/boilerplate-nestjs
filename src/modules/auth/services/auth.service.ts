@@ -31,6 +31,7 @@ export class AuthService {
         lastLoginAt: new Date(),
       },
       invalidate: 'none',
+      tags: null,
     });
 
     const payload: IPayloadJWT = {

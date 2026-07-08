@@ -26,6 +26,7 @@ export class CategoryService {
         slug: dto.slug,
       },
       select: getCategorySelect('general'),
+      tags: null,
     });
   }
 
@@ -71,10 +72,11 @@ export class CategoryService {
         ...(dto.slug && { slug: dto.slug }),
       },
       select: getCategorySelect('general'),
+      tags: null,
     });
   }
 
   async handleDeleteById(id: string) {
-    return await this.categoryRepository.deleteById({ id });
+    return await this.categoryRepository.deleteById({ id, tags: null });
   }
 }

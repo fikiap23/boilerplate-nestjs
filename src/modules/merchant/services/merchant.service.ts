@@ -33,6 +33,7 @@ export class MerchantService {
         slug: dto.slug,
       },
       select: getMerchantSelect('general'),
+      tags: null,
     });
   }
 
@@ -84,6 +85,7 @@ export class MerchantService {
         ...(dto.slug && { slug: dto.slug }),
       },
       select: getMerchantSelect('general'),
+      tags: null,
     });
   }
 
@@ -96,6 +98,7 @@ export class MerchantService {
     return await this.merchantRepository.deleteById({
       id: current.id,
       select: getMerchantSelect('general'),
+      tags: null,
     });
   }
 }

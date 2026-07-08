@@ -1,4 +1,4 @@
 export const CacheTags = {
-  shop: (merchantId: unknown): string[] =>
-    typeof merchantId === 'string' ? [`shop:${merchantId}`] : [],
+  merchant: (merchantId: unknown): string[] =>
+    typeof merchantId === 'string' ? [`merchant:${merchantId}`] : [],
 };

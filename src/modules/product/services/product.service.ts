@@ -31,7 +31,7 @@ export class ProductService {
         category: { connect: { id: dto.categoryId } },
         merchant: { connect: { id: dto.merchantId } },
       },
-      tags: CacheTags.shop(dto.merchantId),
+      tags: CacheTags.merchant(dto.merchantId),
       select: getProductSelect('general'),
     });
   }
@@ -84,7 +84,7 @@ export class ProductService {
           merchant: { connect: { id: dto.merchantId } },
         }),
       },
-      tags: (result) => CacheTags.shop(result.merchantId),
+      tags: (result) => CacheTags.merchant(result.merchantId),
       select: getProductSelect('general'),
     });
   }
@@ -92,7 +92,7 @@ export class ProductService {
   async handleDeleteById(id: string) {
     return this.productRepository.deleteById({
       id,
-      tags: (result) => CacheTags.shop(result.merchantId),
+      tags: (result) => CacheTags.merchant(result.merchantId),
       select: getProductSelect('general'),
     });
   }
