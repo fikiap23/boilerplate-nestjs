@@ -1,111 +1,111 @@
-# Panduan Penggunaan `createPrismaRepository`
+# Guide to Using `createPrismaRepository`
 
-`createPrismaRepository` adalah sebuah factory function/helper di dalam boilerplate NestJS ini yang dirancang untuk mengabstraksi akses data menggunakan **Prisma Client** sekaligus mengintegrasikan beberapa fitur advanced secara transparan:
-1. **Auto-Caching & Invalidation** (didukung oleh Redis).
-2. **Row-Level Locking** (Pessimistic Locking pada database PostgreSQL).
-3. **Relation Split & Automated Composition** (Pemisahan select & penggabungan relasi virtual lintas-modul menggunakan `BaseComposeHelper`).
-4. **Resiliensi Caching (Fail-Open)** & **Thundering Herd / Stampede Protection**.
+`createPrismaRepository` is a factory function/helper in this NestJS boilerplate designed to abstract data access using **Prisma Client** while transparently integrating several advanced features:
+1. **Auto-Caching & Invalidation** (powered by Redis).
+2. **Row-Level Locking** (Pessimistic Locking on PostgreSQL database).
+3. **Relation Split & Automated Relation Composition** (separating database selects and composing virtual relations across modules using `BaseComposeHelper`).
+4. **Caching Resiliency (Fail-Open)** & **Thundering Herd / Stampede Protection**.
 
-Tujuan utama dari layer repositori ini adalah memisahkan logika akses data dari Service (`Controller` → `Service` → `Repository` → `Database`/`Redis`) sehingga kode Service tetap bersih (hanya memiliki method `handle*`) dan akses database serta pengelolaan cache tetap konsisten di seluruh aplikasi.
+The main goal of this repository layer is to decouple data access logic from the Service layer (`Controller` → `Service` → `Repository` → `Database`/`Redis`) so that the Service remains clean (containing only `handle*` methods) and database access/cache management remains consistent across the application.
 
 ---
 
-## 1. Konfigurasi `createPrismaRepository`
+## 1. Configuring `createPrismaRepository`
 
-Factory function ini didefinisikan di dalam [create-prisma.repository.ts](file:///home/fikiap23/sasana/kalventis/boilerplate-nest/src/infrastructure/prisma/create-prisma.repository.ts). Berikut adalah opsi konfigurasi yang didukung saat membuat instance repository:
+This factory function is defined in [create-prisma.repository.ts](file:///home/fikiap23/sasana/kalventis/boilerplate-nest/src/infrastructure/prisma/create-prisma.repository.ts). The following configuration options are supported when instantiating a repository:
 
 ```typescript
 export const MyRepository = createPrismaRepository<
-  TSelect,         // Prisma Select Type (contoh: Prisma.UserSelect)
+  TSelect,         // Prisma Select Type (e.g., Prisma.UserSelect)
   TCreateInput,    // Prisma Create Input Type
   TUpdateInput,    // Prisma Update Input Type
   TWhereInput,     // Prisma Where Input Type
   TOrderBy,        // Prisma OrderBy Type
-  TToPayload,      // Mapper function untuk payload (toPayload)
-  TRepoModel       // Model name string (opsional, untuk cache/invalidation)
+  TToPayload,      // Mapper function for payload (toPayload)
+  TRepoModel       // Model name string (optional, for cache/invalidation)
 >({
-  model: 'myModel', // Nama model yang terdaftar di PrismaSelectPayloadMap
+  model: 'myModel', // Model name registered in PrismaSelectPayloadMap
   
-  // Konfigurasi Cache (Opsional)
+  // Cache Configuration (Optional)
   cache: {
-    ttl: 3600,                   // TTL default untuk data yang di-cache (detik)
-    nullTtl: 60,                 // TTL untuk caching hasil null / negative caching (detik)
-    sensitiveFields: ['password'], // Field yang jika masuk select akan men-bypass cache
-    methods: {                   // Custom TTL per method read
+    ttl: 3600,                   // Default TTL for cached data (seconds)
+    nullTtl: 60,                 // TTL for caching null results / negative caching (seconds)
+    sensitiveFields: ['password'], // Fields that bypass cache if included in select
+    methods: {                   // Custom TTL per read method
       getManyPaginate: { ttl: 300 },
       getMany: { ttl: 300 },
-      getFirst: { enabled: false }, // bypass cache untuk method getFirst
+      getFirst: { enabled: false }, // bypass cache for getFirst method
     },
-    // Fungsi untuk me-resolve cache tags secara dinamis dari data entitas
+    // Dynamic tag resolver function from entity data
     getTags: (entity: any) => [`tenant:${entity.tenantId}`], 
   },
 
-  // Konfigurasi Row-Level Lock (Opsional)
+  // Row-Level Lock Configuration (Optional)
   lock: {
-    tableName: 'my_table',       // Nama tabel asli di database (seperti di @@map)
-    columns: {                   // Pemetaan properti Prisma ke nama kolom fisik DB
+    tableName: 'my_table',       // Actual database table name (matching @@map)
+    columns: {                   // Map Prisma property names to physical DB column names
       createdAt: 'created_at',
       updatedAt: 'updated_at',
     },
   },
 
-  // Mengambil delegate Prisma model
+  // Retrieve Prisma model delegate
   getDelegate: (client) => client.myModel,
   
-  // Fungsi pemetaan payload untuk type-safety select query
+  // Mapping function for type-safe select queries
   toPayload: <T extends Prisma.MyModelSelect>(data: unknown) => data as MyPayload<T>,
   
-  // Enum scalar fields dari model Prisma (dibutuhkan jika memakai composeHelper)
+  // Enum of scalar fields from the Prisma model (required if using composeHelper)
   scalarFields: Prisma.MyModelScalarFieldEnum,
   
-  // Token compose helper NestJS untuk stitching data relasi lintas-modul
+  // NestJS token for the compose helper to stitch cross-module relation data
   composeHelperToken: forwardRef(() => MyComposeHelper),
 });
 ```
 
 ---
 
-## 2. API & Metode Repository
+## 2. Repository API & Methods
 
-Semua instance repository yang dibuat lewat factory memiliki method standar berikut:
+All repository instances generated by the factory have the following standard methods:
 
-### Operasi Read (Mendukung Cache)
-Operasi read hanya akan membaca/menulis ke cache Redis jika:
-1. Properti `model` dan `cache` telah dikonfigurasi pada factory.
-2. Parameter `setCache: true` dikirim saat pemanggilan method.
-3. Query `select` tidak menyertakan field sensitif (seperti `password`).
-4. Operasi tidak berjalan di dalam transaksi database (`tx`).
+### Read Operations (Cache-Supported)
+Read operations only read/write to the Redis cache if:
+1. Both `model` and `cache` options are configured in the factory options.
+2. The `setCache: true` parameter is passed during method execution.
+3. The `select` query does not include any sensitive fields (e.g., `password`).
+4. The operation is not running inside a database transaction (`tx`).
 
 *   **`getById({ id, select?, tx?, setCache?, lock? })`**
-    Mengambil data berdasarkan ID (bisa mengembalikan `null`).
+    Retrieves data by ID (can return `null`).
 *   **`getThrowById({ id, select?, tx?, setCache?, lock? })`**
-    Mengambil data berdasarkan ID, melempar error (`NotFoundError`) jika tidak ditemukan.
+    Retrieves data by ID, throwing a `NotFoundError` if not found.
 *   **`getFirst({ where?, select?, setCache?, cacheTags?, tx? })`**
-    Mengambil data pertama yang cocok dengan kriteria `where`.
+    Retrieves the first data matching the `where` criteria.
 *   **`getMany({ where?, select?, orderBy?, take?, skip?, setCache?, cacheTags?, tx? })`**
-    Mengambil daftar data berdasarkan kriteria.
+    Retrieves a list of data based on criteria.
 *   **`getManyPaginate({ where?, select?, orderBy?, page?, limit?, setCache?, cacheTags?, tx? })`**
-    Mengambil daftar data berhalaman dengan format hasil pagination `{ data, meta }`.
+    Retrieves a paginated list of data in the `{ data, meta }` format.
 
-### Operasi Write (Mengotomatisasi Invalidation)
-Operasi write akan secara otomatis menghapus cache yang relevan di Redis sesaat setelah database selesai melakukan penulisan/pembaruan (jika tidak berjalan di dalam transaksi `tx`).
+### Write Operations (Auto-Invalidation)
+Write operations automatically invalidate the relevant Redis cache keys immediately after successful database writes (unless running inside a transaction `tx`).
 
 *   **`create({ data, select?, tx?, invalidate?, tags? })`**
-    Menyimpan data baru. Invalidation default: `'queries'`.
+    Persists new data. Default invalidation mode: `'queries'`.
 *   **`updateById({ id, data, select?, tx?, invalidate?, tags? })`**
-    Memperbarui data berdasarkan ID. Invalidation default: `'all'`.
+    Updates data by ID. Default invalidation mode: `'all'`.
 *   **`deleteById({ id, select?, tx?, invalidate?, tags? })`**
-    Menghapus data berdasarkan ID. Invalidation default: `'all'`.
+    Deletes data by ID. Default invalidation mode: `'all'`.
 *   **`invalidateCache({ id?, tags? })`**
-    Method utilitas untuk melakukan invalidasi cache secara manual. Berguna untuk membersihkan data entitas berdasarkan ID dan/atau sekumpulan cache tags secara spesifik.
+    Helper method to manually invalidate cache.
     > [!IMPORTANT]
-    > Selalu gunakan utility helper terpusat `CacheTags` (misalnya `CacheTags.merchant(id)`) saat mengisi parameter `tags`. Hindari menuliskan string tag secara manual (seperti `['merchant:xyz']`) untuk mencegah kesalahan pengetikan (*typo*).
-
-    Contoh penggunaan:
+    > Always use the centralized `CacheTags` utility helper (e.g., `CacheTags.merchant(id)`) when providing the `tags` parameter. Avoid writing raw tag strings manually (e.g., `['merchant:xyz']`) to prevent typo-related bugs.
+    
+    Example usage:
     ```typescript
     import { CacheTags } from 'src/common/utils/cache-tag.util';
 
-    // Bersihkan entitas berdasarkan ID sekaligus membersihkan list query milik merchant tertentu
+    // Invalidate entity cache by ID and also invalidate list query caches for a specific merchant
     await this.productRepository.invalidateCache({
       id: productId,
       tags: CacheTags.merchant(merchantId),
@@ -114,44 +114,44 @@ Operasi write akan secara otomatis menghapus cache yang relevan di Redis sesaat 
 
 ---
 
-## 3. Fitur Utama Secara Detail
+## 3. Deep Dive into Core Features
 
-### A. Mekanisme Caching & Invalidation
-Sistem cache dirancang berbasis pola **Cache-Aside** dengan penanganan edge-case modern:
-*   **Negative Caching**: Hasil query yang bernilai `null` tetap di-cache dengan TTL pendek (`nullTtl`) untuk menghindari overload database akibat request data yang tidak ada secara berulang.
-*   **Stampede Protection (Lightweight SetNx Lock)**: Menghindari fenomena *cache stampede* di mana ratusan request secara bersamaan menembak database saat cache miss. Request pertama akan mengunci key (`SETNX`), request berikutnya akan menunggu sejenak (`sleep`) dan mencoba mengambil lagi dari Redis.
-*   **TTL Jitter**: Setiap TTL yang diset ke Redis ditambahkan variasi acak sekitar `±10%` (`applyJitter`) guna mencegah masa kadaluwarsa massal pada waktu yang sama.
-*   **Fail-Open**: Caching didesain opsional dan tidak memblokir aplikasi. Jika server Redis mati, query akan diteruskan langsung ke PostgreSQL tanpa melempar error HTTP ke user.
+### A. Caching & Invalidation Mechanism
+The caching system is based on the **Cache-Aside** pattern with modern edge-case handling:
+*   **Negative Caching**: Query results containing `null` are still cached with a shorter TTL (`nullTtl`) to prevent database overload caused by repetitive requests for non-existent records.
+*   **Stampede Protection (Lightweight SetNx Lock)**: Prevents the *cache stampede* phenomenon where hundreds of concurrent requests hit the database simultaneously during a cache miss. The first request acquires a lock (`SETNX`), and subsequent requests sleep momentarily before attempting to retrieve the data from Redis again.
+*   **TTL Jitter**: Every TTL set in Redis is randomized by `±10%` (`applyJitter`) to prevent massive simultaneous cache expirations.
+*   **Fail-Open**: Caching is designed to be resilient. If the Redis server goes down, queries failover directly to PostgreSQL without throwing HTTP errors to the client.
 
-### B. Mode Invalidation pada Write
-Saat memanggil operasi write, Anda dapat mengatur strategi pembersihan cache lewat argumen `invalidate`:
-*   `'all'`: Menghapus cache spesifik entitas (berdasarkan ID) **dan** seluruh query list (`getMany`/`getManyPaginate`) untuk model tersebut.
-*   `'entity'`: Hanya menghapus cache spesifik entitas (by ID).
-*   `'queries'`: Hanya menghapus cache query list.
-*   `'none'`: Melewati proses invalidasi (sangat berguna untuk update metadata seperti `lastLoginAt` atau tracker yang tidak memengaruhi data respons API).
+### B. Write Invalidation Modes
+When calling write operations, you can control the cache clearing strategy using the `invalidate` parameter:
+*   `'all'`: Invalidate both the entity cache (by ID) **and** all list query caches (`getMany`/`getManyPaginate`) for this model.
+*   `'entity'`: Invalidate only the specific entity cache (by ID).
+*   `'queries'`: Invalidate only the list query caches.
+*   `'none'`: Skip cache invalidation entirely (useful for high-frequency metadata updates like `lastLoginAt` that do not affect API response visuals).
 
 ### C. Row-Level Locking (Pessimistic Lock)
-Berbeda dengan Optimistic Lock, fitur ini memblokir row di database PostgreSQL menggunakan query raw SQL `SELECT ... FOR UPDATE` (atau variasinya) di dalam transaksi `tx`.
-*   **Validasi Startup**: Saat bootstrap aplikasi, konfigurasi `lock` divalidasi silang secara ketat terhadap file [schema.prisma](file:///home/fikiap23/sasana/kalventis/boilerplate-nest/prisma/schema.prisma). Jika ada kolom dengan dekorator `@map` di database yang tidak didefinisikan pemetaannya di opsi `columns`, aplikasi akan gagal start dan memunculkan error konfigurasi.
-*   **Lock Mode**:
-    *   `noKeyUpdate` (default): `FOR NO KEY UPDATE` - Mengunci baris data tetapi memperbolehkan update foreign key lain. Cocok untuk update field biasa (misal stok, status, balance).
-    *   `update`: `FOR UPDATE` - Kunci penuh baris data termasuk relasi foreign key.
-    *   `share`: `FOR SHARE` - Kunci read-only bersama transaksi lain.
-    *   `keyShare`: `FOR KEY SHARE` - Kunci teringan untuk relasi foreign key.
-*   **Penting**: Penggunaan lock wajib disertai parameter transaksi `tx` dan secara otomatis mem-bypass caching.
+Unlike Optimistic Locking, this feature blocks rows in the PostgreSQL database using raw SQL `SELECT ... FOR UPDATE` (or its variants) within a transaction `tx`.
+*   **Startup Validation**: At application bootstrap, `lock` configuration is strictly cross-validated against the [schema.prisma](file:///home/fikiap23/sasana/kalventis/boilerplate-nest/prisma/schema.prisma) file. If any column with a `@map` decorator in the database is not mapped in the `columns` configuration, application startup will fail.
+*   **Lock Modes**:
+    *   `noKeyUpdate` (default): `FOR NO KEY UPDATE` - Locks the row but allows updating other foreign keys. Ideal for regular field updates (e.g., stock, status, balance).
+    *   `update`: `FOR UPDATE` - Full lock on the row, including foreign key relations.
+    *   `share`: `FOR SHARE` - Read-only lock shared with other transactions.
+    *   `keyShare`: `FOR KEY SHARE` - Lightest lock for foreign key relations.
+*   **Important**: Using locks requires an active transaction (`tx`) and automatically bypasses caching.
 
-### D. Relasi Virtual / Automated Compose Helper
-Karena repository menggunakan cache, relasi database kompleks (`include` atau `select` relasi pada Prisma) akan sangat menyulitkan invalidasi cache secara granular.
-*   **Solusi**: Repositori membagi query select menggunakan utilitas `splitSelect`. Field database scalar biasa ditarik dari database/cache model bersangkutan, sedangkan field relasi ditarik melalui repository/helper-nya masing-masing secara paralel dan digabungkan di memori via helper yang meng-extend `BaseComposeHelper`.
-*   Hal ini memastikan caching tetap bekerja sangat cepat pada layer entitas individual dan relasi tetap bisa ter-resolve dengan efisien.
+### D. Virtual Relation Composition (`BaseComposeHelper`)
+Since repositories use caching, fetching nested relations directly via Prisma (`include` or nested `select`) makes caching and fine-grained invalidation difficult.
+*   **Solution**: The repository splits the select query using the `splitSelect` utility. Scalar database fields are fetched from the database or cache of the respective model, while relation fields are fetched through their respective repositories/helpers in parallel and merged in memory using a helper extending `BaseComposeHelper`.
+*   This ensures fast caching at the entity level while still resolving relations efficiently.
 
 ---
 
-## 4. Contoh Use Case Lengkap
+## 4. Comprehensive Use Case Examples
 
-Mari kita buat contoh implementasi fiktif terintegrasi untuk entitas **Produk** yang dimiliki oleh **Merchant** (toko) dan dikelompokkan berdasarkan **Kategori**.
+Let's look at an integrated implementation for a fictitious setup: **Product** belongs to a **Merchant** and is categorized under a **Category**.
 
-### 📄 Skema Prisma (`prisma/schema.prisma`)
+### 📄 Prisma Schema (`prisma/schema.prisma`)
 ```prisma
 model Merchant {
   id        String    @id @default(uuid())
@@ -186,29 +186,29 @@ model Product {
 }
 ```
 
-### Registry Prisma (`prisma-select-payload.type.ts`)
-Setiap kali mengaktifkan cache pada repository baru, model tersebut **wajib** diregistrasikan ke tipe select payload di [prisma-select-payload.type.ts](file:///home/fikiap23/sasana/kalventis/boilerplate-nest/src/infrastructure/prisma/types/prisma-select-payload.type.ts) agar TypeScript dapat mendeteksi properti select yang valid:
+### Prisma Select Payload Registry (`prisma-select-payload.type.ts`)
+Whenever enabling caching for a new repository, the model **must** be registered in [prisma-select-payload.type.ts](file:///home/fikiap23/sasana/kalventis/boilerplate-nest/src/infrastructure/prisma/types/prisma-select-payload.type.ts) so that TypeScript can validate the select properties:
 
 ```typescript
 export const PRISMA_SELECT_PAYLOAD_MODEL_KEYS = [
   'admin',
   'merchant',
   'category',
-  'product', // <--- Daftarkan model runtime key di sini
+  'product', // <--- Register the model runtime key here
 ] as const;
 
 export interface PrismaSelectPayloadMap {
   admin: Prisma.AdminSelect;
   merchant: Prisma.MerchantSelect;
   category: Prisma.CategorySelect;
-  product: Prisma.ProductSelect; // <--- Daftarkan tipe data Prisma select
+  product: Prisma.ProductSelect; // <--- Register the Prisma select type
 }
 ```
 
 ---
 
-### Use Case 1: CRUD & Caching Dasar (Product Repository)
-Kita membuat repository untuk `Product` dengan caching Redis diaktifkan.
+### Use Case 1: Standard CRUD & Caching (Product Repository)
+We create a repository for `Product` with Redis caching enabled.
 
 ```typescript
 // src/modules/product/repositories/product.repository.ts
@@ -238,11 +238,11 @@ export const ProductRepository = createPrismaRepository<
 >({
   model: 'product',
   cache: {
-    ttl: 60 * 60, // Cache selama 1 jam
-    nullTtl: 30,  // Cache data kosong selama 30 detik
-    sensitiveFields: [], // Kosongkan jika tidak ada field sensitif
+    ttl: 60 * 60, // Cache for 1 hour
+    nullTtl: 30,  // Cache empty results for 30 seconds
+    sensitiveFields: [],
     methods: {
-      getManyPaginate: { ttl: 60 * 5 }, // List berhalaman cukup di-cache 5 menit
+      getManyPaginate: { ttl: 60 * 5 }, // Cache paginated lists for 5 minutes
     },
   },
   getDelegate: (client) => client.product,
@@ -266,10 +266,10 @@ export type ProductRepository = PrismaRepositoryInstance<
 ---
 
 ### Use Case 2: Multi-Tenant & Cache Tagging
-Dalam sistem multi-tenant, menghapus *semua* cache query list saat ada penambahan produk baru di salah satu Merchant sangat tidak efisien (menghancurkan cache Merchant lain). Kita mengatasinya dengan cache tagging berbasis `merchantId`.
+In a multi-tenant system, clearing *all* list query caches when a new product is added to a single Merchant is inefficient. We solve this by using cache tagging scoped to `merchantId`.
 
-1.  **Daftarkan Tag di Utilitas Cache Tag**
-    Definisikan struktur tag terpusat di `src/common/utils/cache-tag.util.ts`:
+1.  **Register Tags in Cache Tag Utility**
+    Define a centralized tag structure in `src/common/utils/cache-tag.util.ts`:
     ```typescript
     export const CacheTags = {
       merchant: (merchantId: unknown): string[] =>
@@ -277,19 +277,19 @@ Dalam sistem multi-tenant, menghapus *semua* cache query list saat ada penambaha
     };
     ```
 
-2.  **Konfigurasi Dynamic Tags di Repository**
-    Tambahkan fungsi `getTags` di konfigurasi cache repositori:
+2.  **Configure Dynamic Tags in the Repository**
+    Add the `getTags` function to the cache options of the repository:
     ```typescript
-    // Di dalam createPrismaRepository options ProductRepository:
+    // Inside ProductRepository createPrismaRepository options:
     cache: {
       ttl: 60 * 60,
       getTags: (product: any) => CacheTags.merchant(product.merchantId),
     }
     ```
-    *   **Saat Read (`getMany`/`getManyPaginate`)**: Jika service mengirim filter `where: { merchantId: 'merchant-abc' }`, repositori secara otomatis me-resolve tag `['merchant:merchant-abc']` dan menyimpannya di Redis di bawah index tag tersebut.
-    *   **Saat Write (`create`/`updateById`/`deleteById`)**: Repositori mengekstrak `merchantId` dari record hasil database dan otomatis memicu penghapusan query hanya untuk tag `['merchant:merchant-abc']` (menjaga cache merchant lain tetap aman).
+    *   **On Read (`getMany`/`getManyPaginate`)**: If the service filters by `where: { merchantId: 'merchant-abc' }`, the repository dynamically resolves the tag `['merchant:merchant-abc']` and indexes the cache entry with it.
+    *   **On Write (`create`/`updateById`/`deleteById`)**: The repository extracts the `merchantId` from the returned database record and automatically clears query caches associated with the tag `['merchant:merchant-abc']` (leaving other merchants' caches untouched).
 
-3.  **Penggunaan di Service Layer**
+3.  **Usage in Service Layer**
     ```typescript
     // src/modules/product/services/product.service.ts
     import { Injectable, HttpStatus } from '@nestjs/common';
@@ -301,22 +301,21 @@ Dalam sistem multi-tenant, menghapus *semua* cache query list saat ada penambaha
     export class ProductService {
       constructor(private readonly productRepository: ProductRepository) {}
 
-      // Mendapatkan list produk per merchant (Akan di-cache & di-tag per merchant)
+      // Get products by merchant (automatically cached and tagged per merchant)
       async handleGetProductsByMerchant(merchantId: string, page = 1, limit = 10) {
         return this.productRepository.getManyPaginate({
           where: { merchantId },
           select: { id: true, name: true, price: true },
           page,
           limit,
-          setCache: true, // AKTIFKAN CACHE
+          setCache: true, // ENABLE CACHE
         });
       }
 
-      // Simpan produk baru (Otomatis invalidasi cache merchant terkait)
+      // Create new product (automatically invalidates cache for the associated merchant)
       async handleCreateProduct(dto: CreateProductDto) {
         return this.productRepository.create({
           data: dto,
-          // Tags untuk write wajib dikirim (bisa berupa callback/array langsung)
           tags: (result) => CacheTags.merchant(result.merchantId), 
         });
       }
@@ -326,14 +325,14 @@ Dalam sistem multi-tenant, menghapus *semua* cache query list saat ada penambaha
 ---
 
 ### Use Case 3: Pessimistic Row Locking (SELECT FOR UPDATE)
-Skenario pengurangan stok produk saat pesanan dibuat. Kita harus mencegah balapan kondisi (race condition) ketika stok dibeli oleh dua transaksi secara bersamaan.
+Handling stock deduction when an order is created. We must lock the product row to prevent race conditions when two transactions attempt to deduct stock concurrently.
 
-1.  **Konfigurasi Lock di Repository**
-    Tabel database `products` memetakan properti `createdAt` ke `created_at` dan `updatedAt` ke `updated_at`. Pemetaan ini didaftarkan di config `lock.columns` (wajib dideklarasikan semua field scalar yang memiliki anotasi `@map` di schema.prisma).
+1.  **Configure Lock in Repository**
+    The `products` table maps database properties `createdAt` to `created_at` and `updatedAt` to `updated_at`. This mapping is registered under `lock.columns` (all scalar fields with a `@map` decorator in schema.prisma must be mapped here).
     ```typescript
-    // Di dalam createPrismaRepository options ProductRepository:
+    // Inside ProductRepository createPrismaRepository options:
     lock: {
-      tableName: 'products', // Nama tabel asli dari @@map
+      tableName: 'products', // Real table name from @@map
       columns: {
         createdAt: 'created_at',
         updatedAt: 'updated_at',
@@ -341,8 +340,8 @@ Skenario pengurangan stok produk saat pesanan dibuat. Kita harus mencegah balapa
     }
     ```
 
-2.  **Pemanggilan Lock di Service Layer**
-    Operasi lock wajib berjalan di dalam transaksi (`tx`).
+2.  **Executing Locks in Service Layer**
+    Locks must always run inside a transaction (`tx`).
     ```typescript
     // src/modules/product/services/product.service.ts
     import { Injectable, HttpStatus } from '@nestjs/common';
@@ -359,35 +358,35 @@ Skenario pengurangan stok produk saat pesanan dibuat. Kita harus mencegah balapa
 
       async handleDeductStock(productId: string, quantity: number) {
         return this.prisma.execTx(
-          // 1. Jalankan di dalam transaksi (tx)
+          // 1. Run inside database transaction (tx)
           async (tx) => {
-            // 2. Baca produk dengan lock (menunggu transaksi lain commit/rollback)
+            // 2. Fetch the product with lock (waits for other locking transactions to commit/rollback)
             const product = await this.productRepository.getThrowById({
               tx,
               id: productId,
               select: { id: true, stock: true },
-              lock: { mode: 'noKeyUpdate' }, // Kunci baris produk
+              lock: { mode: 'noKeyUpdate' }, // Lock the product row
             });
 
             if (product.stock < quantity) {
               throw new CustomError({
                 statusCode: HttpStatus.BAD_REQUEST,
-                message: 'Stok tidak mencukupi',
+                message: 'Insufficient stock',
               });
             }
 
-            // 3. Update stok
+            // 3. Update stock
             const updated = await this.productRepository.updateById({
               tx,
               id: productId,
               data: { stock: product.stock - quantity },
-              invalidate: 'none', // skip invalidasi di dalam tx
+              invalidate: 'none', // skip invalidation inside tx
               tags: null,
             });
 
             return updated;
           },
-          // 4. Callback afterCommit - Hapus cache setelah transaksi berhasil
+          // 4. afterCommit callback - Clear cache after transaction successfully commits
           async () => {
             await this.productRepository.invalidateCache({ id: productId });
           }
@@ -399,10 +398,10 @@ Skenario pengurangan stok produk saat pesanan dibuat. Kita harus mencegah balapa
 ---
 
 ### Use Case 4: Virtual Relation Composition (`BaseComposeHelper`)
-Mendapatkan produk beserta kategori dan data merchant secara terpisah (decoupled query) alih-alih `join` database langsung menggunakan Prisma.
+Fetching a product with category and merchant data decoupled (without using database `join` directly).
 
-1.  **Buat Compose Helper**
-    Buat helper `@Injectable` untuk menyatukan relasi:
+1.  **Create Compose Helper**
+    Create an `@Injectable` helper class to stitch relations:
     ```typescript
     // src/modules/product/helpers/product-compose.helper.ts
     import { Injectable } from '@nestjs/common';
@@ -416,16 +415,16 @@ Mendapatkan produk beserta kategori dan data merchant secara terpisah (decoupled
         private readonly categoryRepository: CategoryRepository,
         private readonly merchantRepository: MerchantRepository,
       ) {
-        // Daftarkan relasi virtual beserta repositorinya
+        // Register virtual relations and their respective repositories
         super({
           category: {
             repository: categoryRepository,
-            type: 'one', // satu kategori per produk
+            type: 'one', // one category per product
             foreignKey: 'categoryId',
           },
           merchant: {
             repository: merchantRepository,
-            type: 'one', // satu merchant per produk
+            type: 'one', // one merchant per product
             foreignKey: 'merchantId',
           },
         });
@@ -433,7 +432,7 @@ Mendapatkan produk beserta kategori dan data merchant secara terpisah (decoupled
     }
     ```
 
-2.  **Registrasikan di Module Providers**
+2.  **Register in Module Providers**
     ```typescript
     // src/modules/product/product.module.ts
     import { Module, forwardRef } from '@nestjs/common';
@@ -454,8 +453,8 @@ Mendapatkan produk beserta kategori dan data merchant secara terpisah (decoupled
     export class ProductModule {}
     ```
 
-3.  **Penggunaan di Service Layer**
-    Service cukup menggunakan select preset general/detail biasa. Pemecahan select dan stitching relasi berjalan di balik layar secara transparan!
+3.  **Usage in Service Layer**
+    The service layer remains clean using general/detailed select presets. Select splitting and relationship stitching are resolved transparently:
     ```typescript
     // src/modules/product/services/product.service.ts
     async handleGetProductDetail(id: string) {
@@ -465,23 +464,23 @@ Mendapatkan produk beserta kategori dan data merchant secara terpisah (decoupled
           id: true,
           name: true,
           price: true,
-          category: { select: { id: true, name: true } }, // relasi category
-          merchant: { select: { id: true, name: true } }, // relasi merchant
+          category: { select: { id: true, name: true } }, // category relation
+          merchant: { select: { id: true, name: true } }, // merchant relation
         },
-        setCache: true, // Data produk yang ter-compose juga akan tersimpan di cache
+        setCache: true, // The composed product data is saved in cache
       });
     }
     ```
 
 ---
 
-### Use Case 5: Integrasi Transaksi DB & Invalidasi Manual (`execTx`)
-Sistem caching tidak berjalan (di-bypass) di dalam transaksi database. Saat melakukan modifikasi data secara massal atau bertingkat di dalam transaksi, invalidasi cache wajib ditunda hingga transaksi berhasil di-commit menggunakan parameter `afterCommit` pada `execTx`.
+### Use Case 5: Transaction Integration & Manual Invalidation (`execTx`)
+The caching layer is bypassed inside database transactions. When performing bulk or multi-step modifications within a transaction, cache invalidation must be deferred until the transaction successfully commits using the `afterCommit` callback of `execTx`.
 
 ```typescript
 // src/modules/product/services/product.service.ts
 async handleBulkUpdatePrice(merchantId: string, discountRate: number) {
-  // Ambil list id produk yang akan di-update (bypass cache)
+  // Get product IDs to update (bypassing cache)
   const products = await this.productRepository.getMany({
     where: { merchantId },
     select: { id: true },
@@ -496,15 +495,15 @@ async handleBulkUpdatePrice(merchantId: string, discountRate: number) {
           tx,
           id,
           data: { price: { multiply: discountRate } },
-          invalidate: 'none', // Skip otomatis invalidasi agar tidak menembak Redis di dalam tx
+          invalidate: 'none', // Skip auto-invalidation to avoid Redis updates inside tx
           tags: null,
         });
       }
     },
-    // afterCommit berjalan hanya setelah transaksi database berhasil dicommit ke PG
+    // afterCommit runs only after the transaction is successfully committed to PG
     async () => {
-      // Bersihkan cache entity satu per satu secara paralel di Redis
-      // Serta bersihkan list query yang berkaitan dengan merchant tersebut secara type-safe
+      // Invalidate individual entity caches in parallel in Redis
+      // Also clear list query caches associated with this merchant in a type-safe way
       await Promise.all([
         ...productIds.map((id) => this.productRepository.invalidateCache({ id })),
         this.productRepository.invalidateCache({ tags: CacheTags.merchant(merchantId) }),
@@ -516,10 +515,10 @@ async handleBulkUpdatePrice(merchantId: string, discountRate: number) {
 
 ---
 
-## 5. Ringkasan Aturan & Best Practices
+## 5. Summary of Rules & Best Practices
 
-1.  **Bypass Cache untuk Transaksi & Autentikasi**: Jangan pernah memberikan opsi `setCache: true` untuk pencarian password (auth), pengecekan unik data email/slug pada write path, dan saat melakukan read di dalam blok transaksi (`tx`).
-2.  **Metadata Update**: Gunakan parameter `invalidate: 'none'` untuk memperbarui data frekuensi tinggi yang tidak memengaruhi visual API (contoh: `lastLoginAt`, `readCount`, `lastUpdatedAt`).
-3.  **Daftarkan di `PrismaSelectPayloadMap`**: Seluruh model repositori baru yang memiliki konfigurasi cache harus didaftarkan di [prisma-select-payload.type.ts](file:///home/fikiap23/sasana/kalventis/boilerplate-nest/src/infrastructure/prisma/types/prisma-select-payload.type.ts) agar kompilasi TypeScript berjalan sukses.
-4.  **Row Lock Config**: Pastikan semua nama kolom fisik database yang menggunakan `@map(...)` di `schema.prisma` terdefinisi persis pada konfigurasi `lock.columns` repositori agar tidak memicu error startup validasi.
-5.  **Gunakan CLI Generator (Sangat Direkomendasikan)**: Untuk mempercepat pembuatan modul baru, gunakan perintah `yarn gen:module <nama_modul> --cache` yang otomatis men-generate modul, controller, service, helper, dto, tipe select, registrasi payload map, serta repositori dengan konfigurasi cache dasar.
+1.  **Bypass Cache for Transactions & Authentication**: Never use `setCache: true` for credential lookups, email/slug uniqueness checks on write paths, or read queries inside transaction blocks (`tx`).
+2.  **Metadata-Only Updates**: Use `invalidate: 'none'` to update high-frequency columns that do not affect the public API response layout (e.g., `lastLoginAt`, `readCount`, `lastUpdatedAt`).
+3.  **Register in `PrismaSelectPayloadMap`**: All new repositories configured with cache must be registered in [prisma-select-payload.type.ts](file:///home/fikiap23/sasana/kalventis/boilerplate-nest/src/infrastructure/prisma/types/prisma-select-payload.type.ts) for compilation success.
+4.  **Row Lock Config**: Ensure all physical database column names mapped with `@map(...)` in `schema.prisma` are declared in the repository `lock.columns` configuration to avoid startup validation errors.
+5.  **Use CLI Generator (Highly Recommended)**: To speed up development, use `yarn gen:module <module_name> --cache` to automatically scaffold the module, controller, service, helper, dto, select presets, payload map registration, and a cache-configured repository.
