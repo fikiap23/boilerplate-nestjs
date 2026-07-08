@@ -1,69 +1,75 @@
-import { Prisma } from 'src/infrastructure/prisma/prisma-client';
 import { Product } from '../entities/product.entity';
 
+export interface ProductFilter {
+  search?: string;
+  categoryId?: string;
+  merchantId?: string;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  meta: {
+    total: number;
+    lastPage: number;
+    currentPage: number;
+    perPage: number;
+    prev: number | null;
+    next: number | null;
+  };
+}
+
 export interface IProductRepository {
-  create<T extends Prisma.ProductSelect>(options: {
-    data: Product;
-    tx?: Prisma.TransactionClient;
-    select?: T;
-  }): Promise<Prisma.ProductGetPayload<{ select: T }>>;
+  create(options: { data: Product; tx?: any }): Promise<Product>;
 
-  getById<T extends Prisma.ProductSelect>(options: {
+  getById(options: {
     id: string;
-    tx?: Prisma.TransactionClient;
+    tx?: any;
     setCache?: boolean;
     lock?: { mode: 'noKeyUpdate' | 'update' | 'share' | 'keyShare' };
-    select?: T;
-  }): Promise<Prisma.ProductGetPayload<{ select: T }> | null>;
+  }): Promise<Product | null>;
 
-  getThrowById<T extends Prisma.ProductSelect>(options: {
+  getThrowById(options: {
     id: string;
-    tx?: Prisma.TransactionClient;
+    tx?: any;
     setCache?: boolean;
     lock?: { mode: 'noKeyUpdate' | 'update' | 'share' | 'keyShare' };
-    select?: T;
-  }): Promise<Prisma.ProductGetPayload<{ select: T }>>;
+  }): Promise<Product>;
 
-  getFirst<T extends Prisma.ProductSelect>(options: {
-    where: Prisma.ProductWhereInput;
-    tx?: Prisma.TransactionClient;
+  getFirst(options: {
+    where: ProductFilter;
+    tx?: any;
     setCache?: boolean;
-    select?: T;
-  }): Promise<Prisma.ProductGetPayload<{ select: T }> | null>;
+  }): Promise<Product | null>;
 
-  getMany<T extends Prisma.ProductSelect>(options: {
-    where: Prisma.ProductWhereInput;
-    tx?: Prisma.TransactionClient;
+  getMany(options: {
+    where: ProductFilter;
+    tx?: any;
     setCache?: boolean;
-    select?: T;
-  }): Promise<Prisma.ProductGetPayload<{ select: T }>[]>;
+  }): Promise<Product[]>;
 
-  getManyPaginate<T extends Prisma.ProductSelect>(options: {
-    where: Prisma.ProductWhereInput;
+  getManyPaginate(options: {
+    where: ProductFilter;
     page?: number;
     limit?: number;
-    orderBy?: Prisma.ProductOrderByWithRelationInput;
-    tx?: Prisma.TransactionClient;
+    orderBy?: {
+      field: 'createdAt' | 'updatedAt' | 'name' | 'price';
+      sort: 'asc' | 'desc';
+    };
+    tx?: any;
     setCache?: boolean;
-    cacheTags?: string[] | ((where?: Prisma.ProductWhereInput) => string[]);
-    select?: T;
-  }): Promise<{ data: Prisma.ProductGetPayload<{ select: T }>[]; meta: any }>;
+    cacheTags?: string[];
+  }): Promise<PaginatedResult<Product>>;
 
-  updateById<T extends Prisma.ProductSelect>(options: {
+  updateById(options: {
     id: string;
     data: Product;
-    tx?: Prisma.TransactionClient;
+    tx?: any;
     invalidate?: 'all' | 'entity' | 'queries' | 'none';
-    select?: T;
-  }): Promise<Prisma.ProductGetPayload<{ select: T }>>;
+  }): Promise<Product>;
 
-  deleteById<T extends Prisma.ProductSelect>(options: {
-    id: string;
-    tx?: Prisma.TransactionClient;
-    select?: T;
-  }): Promise<Prisma.ProductGetPayload<{ select: T }>>;
+  deleteById(options: { id: string; tx?: any }): Promise<Product>;
 
-  save(product: Product, tx?: Prisma.TransactionClient): Promise<void>;
+  save(product: Product, tx?: any): Promise<void>;
 
   invalidateCache(options: { id?: string }): Promise<void>;
 }

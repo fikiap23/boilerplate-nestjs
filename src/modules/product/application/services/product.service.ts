@@ -7,11 +7,14 @@ import {
   FilterProductDto,
   UpdateProductDto,
 } from '../../presentation/dto/product.dto';
-import { IProductRepository } from '../../domain/repositories/product.repository.interface';
+import {
+  IProductRepository,
+  PaginatedResult,
+} from '../../domain/repositories/product.repository.interface';
 import { Product } from '../../domain/entities/product.entity';
-import { whereProductGetManyPaginate } from '../../types/where-product.type';
+import { Price } from '../../domain/value-objects/price.value-object';
+import { Stock } from '../../domain/value-objects/stock.value-object';
 import { CacheTags } from 'src/common/utils/cache-tag.util';
-import { getProductSelect } from '../../types/select-product.type';
 
 @Injectable()
 export class ProductService {
@@ -22,54 +25,56 @@ export class ProductService {
     private readonly productCategoryValidateHelper: ProductCategoryValidateHelper,
   ) {}
 
-  async handleCreate(dto: CreateProductDto) {
+  async handleCreate(dto: CreateProductDto): Promise<Product> {
     await this.productCategoryValidateHelper.validateCategoryExists(
       dto.categoryId,
     );
 
-    const product = new Product();
-    product.setName(dto.name);
-    product.setPrice(dto.price);
-    product.setStock(dto.stock);
-    product.setDescription(dto.description || null);
-    product.setCategoryId(dto.categoryId);
-    product.setMerchantId(dto.merchantId);
+    const product = new Product({
+      name: dto.name,
+      price: new Price(dto.price),
+      stock: new Stock(dto.stock),
+      description: dto.description || null,
+      categoryId: dto.categoryId,
+      merchantId: dto.merchantId,
+    });
 
     return this.productRepository.create({
       data: product,
-      select: getProductSelect('general'),
     });
   }
 
-  async handleGetById(id: string) {
+  async handleGetById(id: string): Promise<Product> {
     return this.productRepository.getThrowById({
       id,
       setCache: true,
-      select: getProductSelect('general'),
     });
   }
 
-  async handleGetManyPaginate(dto: FilterProductDto) {
+  async handleGetManyPaginate(
+    dto: FilterProductDto,
+  ): Promise<PaginatedResult<Product>> {
     const { sort = 'desc', page = 1, limit = 10 } = dto;
-    const { where } = whereProductGetManyPaginate(dto);
+    const filter = {
+      search: dto.search,
+      categoryId: dto.categoryId,
+      merchantId: dto.merchantId,
+    };
 
     return this.productRepository.getManyPaginate({
-      where,
-      orderBy: { createdAt: sort },
+      where: filter,
+      orderBy: { field: 'createdAt', sort },
       page,
       limit,
       setCache: true,
       cacheTags: CacheTags.merchant(dto.merchantId),
-      select: getProductSelect('general'),
     });
   }
 
-  async handleUpdateById(id: string, dto: UpdateProductDto) {
-    const raw = await this.productRepository.getThrowById({
+  async handleUpdateById(id: string, dto: UpdateProductDto): Promise<Product> {
+    const product = await this.productRepository.getThrowById({
       id,
-      select: getProductSelect('general'),
     });
-    const product = Product.fromPrisma(raw);
 
     if (dto.categoryId) {
       await this.productCategoryValidateHelper.validateCategoryExists(
@@ -77,36 +82,37 @@ export class ProductService {
       );
     }
 
-    product.setName(dto.name);
-    product.setDescription(dto.description);
-    product.setPrice(dto.price);
-    product.setStock(dto.stock);
-    product.setCategoryId(dto.categoryId);
+    product.updateDetails({
+      name: dto.name ?? product.getName(),
+      description:
+        dto.description !== undefined
+          ? dto.description
+          : product.getDescription(),
+      price:
+        dto.price !== undefined ? new Price(dto.price) : product.getPrice(),
+      categoryId: dto.categoryId,
+    });
 
     return this.productRepository.updateById({
       id,
       data: product,
-      select: getProductSelect('general'),
     });
   }
 
-  async handleDeleteById(id: string) {
+  async handleDeleteById(id: string): Promise<Product> {
     return this.productRepository.deleteById({
       id,
-      select: getProductSelect('general'),
     });
   }
 
-  async handleReduceStock(id: string, quantity: number) {
+  async handleReduceStock(id: string, quantity: number): Promise<void> {
     await this.prisma.execTx(
       async (tx) => {
-        const raw = await this.productRepository.getThrowById({
+        const product = await this.productRepository.getThrowById({
           tx,
           id,
           lock: { mode: 'noKeyUpdate' },
-          select: getProductSelect('general'),
         });
-        const product = Product.fromPrisma(raw);
 
         product.reduceStock(quantity);
 
@@ -115,7 +121,6 @@ export class ProductService {
           id,
           data: product,
           invalidate: 'none',
-          select: { id: true },
         });
       },
       async () => {
@@ -124,16 +129,14 @@ export class ProductService {
     );
   }
 
-  async handleRestoreStock(id: string, quantity: number) {
+  async handleRestoreStock(id: string, quantity: number): Promise<void> {
     await this.prisma.execTx(
       async (tx) => {
-        const raw = await this.productRepository.getThrowById({
+        const product = await this.productRepository.getThrowById({
           tx,
           id,
           lock: { mode: 'noKeyUpdate' },
-          select: getProductSelect('general'),
         });
-        const product = Product.fromPrisma(raw);
 
         product.restoreStock(quantity);
 
@@ -142,7 +145,6 @@ export class ProductService {
           id,
           data: product,
           invalidate: 'none',
-          select: { id: true },
         });
       },
       async () => {

@@ -12,11 +12,11 @@ export class ProductClientImpl implements ProductClient {
       const product = await this.productService.handleGetById(id);
       if (!product) return null;
       return {
-        id: product.id,
-        name: product.name,
-        price: Number(product.price),
-        stock: product.stock,
-        description: product.description,
+        id: product.getId(),
+        name: product.getName(),
+        price: product.getPrice().getValue(),
+        stock: product.getStock().getValue(),
+        description: product.getDescription(),
       };
     } catch {
       return null;

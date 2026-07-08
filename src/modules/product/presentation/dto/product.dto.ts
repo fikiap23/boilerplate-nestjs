@@ -10,6 +10,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { SearchPaginationDto } from 'src/shared/dto/pagination.dto';
+import { Product } from '../../domain/entities/product.entity';
 
 export class CreateProductDto {
   @ApiProperty({ example: 'iPhone 15' })
@@ -90,4 +91,90 @@ export class FilterProductDto extends SearchPaginationDto {
   @IsOptional()
   @IsUUID()
   merchantId?: string;
+}
+
+export class ProductAssociatedCategoryDto {
+  @ApiProperty({ example: 'uuid-of-category' })
+  id: string;
+
+  @ApiProperty({ example: 'Electronics' })
+  name: string;
+
+  @ApiProperty({ example: 'electronics' })
+  slug: string;
+}
+
+export class ProductAssociatedMerchantDto {
+  @ApiProperty({ example: 'uuid-of-merchant' })
+  id: string;
+
+  @ApiProperty({ example: 'Awesome Shop' })
+  name: string;
+
+  @ApiProperty({ example: 'awesome-shop' })
+  slug: string;
+}
+
+export class ProductResponseDto {
+  @ApiProperty({ example: 'uuid-of-product' })
+  id: string;
+
+  @ApiProperty({ example: 'iPhone 15' })
+  name: string;
+
+  @ApiProperty({ example: 'This is a description' })
+  description: string | null;
+
+  @ApiProperty({ example: 999.99 })
+  price: number;
+
+  @ApiProperty({ example: 100 })
+  stock: number;
+
+  @ApiProperty({ example: 'uuid-of-category' })
+  categoryId: string;
+
+  @ApiProperty({ example: 'uuid-of-merchant' })
+  merchantId: string;
+
+  @ApiProperty({ example: '2026-07-08T12:00:00.000Z' })
+  createdAt?: Date;
+
+  @ApiProperty({ example: '2026-07-08T12:00:00.000Z' })
+  updatedAt?: Date;
+
+  @ApiPropertyOptional({ type: () => ProductAssociatedCategoryDto })
+  category?: ProductAssociatedCategoryDto;
+
+  @ApiPropertyOptional({ type: () => ProductAssociatedMerchantDto })
+  merchant?: ProductAssociatedMerchantDto;
+
+  static fromDomain(domain: Product): ProductResponseDto {
+    if (!domain) return null;
+    return {
+      id: domain.getId(),
+      name: domain.getName(),
+      description: domain.getDescription(),
+      price: domain.getPrice().getValue(),
+      stock: domain.getStock().getValue(),
+      categoryId: domain.getCategoryId(),
+      merchantId: domain.getMerchantId(),
+      createdAt: domain.getCreatedAt(),
+      updatedAt: domain.getUpdatedAt(),
+      category: domain.getCategory()
+        ? {
+            id: domain.getCategory().id,
+            name: domain.getCategory().name,
+            slug: domain.getCategory().slug,
+          }
+        : undefined,
+      merchant: domain.getMerchant()
+        ? {
+            id: domain.getMerchant().id,
+            name: domain.getMerchant().name,
+            slug: domain.getMerchant().slug,
+          }
+        : undefined,
+    };
+  }
 }

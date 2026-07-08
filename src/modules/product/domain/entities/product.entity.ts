@@ -1,39 +1,58 @@
-import { Prisma } from 'src/infrastructure/prisma/prisma-client';
 import { Price } from '../value-objects/price.value-object';
 import { Stock } from '../value-objects/stock.value-object';
 import { InsufficientStockException } from '../exceptions/insufficient-stock.exception';
 
+export interface ProductAssociatedCategory {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface ProductAssociatedMerchant {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface ProductProps {
+  id?: string | null;
+  name: string;
+  description?: string | null;
+  price: Price;
+  stock: Stock;
+  categoryId: string;
+  merchantId: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  category?: ProductAssociatedCategory;
+  merchant?: ProductAssociatedMerchant;
+}
+
 export class Product {
   private id: string | null = null;
-  private name: string = '';
+  private name: string;
   private description: string | null = null;
-  private price: Price = new Price(0);
-  private stock: Stock = new Stock(0);
-  private categoryId: string = '';
-  private merchantId: string = '';
+  private price: Price;
+  private stock: Stock;
+  private categoryId: string;
+  private merchantId: string;
   private createdAt?: Date;
   private updatedAt?: Date;
+  private category?: ProductAssociatedCategory;
+  private merchant?: ProductAssociatedMerchant;
 
-  constructor(
-    id?: string | null,
-    name?: string,
-    description?: string | null,
-    price?: Price,
-    stock?: Stock,
-    categoryId?: string,
-    merchantId?: string,
-    createdAt?: Date,
-    updatedAt?: Date,
-  ) {
-    if (id !== undefined) this.id = id;
-    if (name !== undefined) this.name = name;
-    if (description !== undefined) this.description = description;
-    if (price !== undefined) this.price = price;
-    if (stock !== undefined) this.stock = stock;
-    if (categoryId !== undefined) this.categoryId = categoryId;
-    if (merchantId !== undefined) this.merchantId = merchantId;
-    if (createdAt !== undefined) this.createdAt = createdAt;
-    if (updatedAt !== undefined) this.updatedAt = updatedAt;
+  constructor(props: ProductProps) {
+    this.id = props.id || null;
+    this.name = props.name;
+    this.description = props.description || null;
+    this.price = props.price;
+    this.stock = props.stock;
+    this.categoryId = props.categoryId;
+    this.merchantId = props.merchantId;
+    this.createdAt = props.createdAt;
+    this.updatedAt = props.updatedAt;
+    this.category = props.category;
+    this.merchant = props.merchant;
   }
 
   public getId(): string | null {
@@ -41,99 +60,66 @@ export class Product {
   }
 
   public setId(id: string | null): void {
-    if (id !== undefined) {
-      this.id = id;
-    }
+    this.id = id;
   }
 
   public getName(): string {
     return this.name;
   }
 
-  public setName(name: string | undefined): void {
-    if (name !== undefined) {
-      this.name = name;
-    }
-  }
-
   public getDescription(): string | null {
     return this.description;
-  }
-
-  public setDescription(description: string | null | undefined): void {
-    if (description !== undefined) {
-      this.description = description;
-    }
   }
 
   public getPrice(): Price {
     return this.price;
   }
 
-  public setPrice(price: Price | number | undefined): void {
-    if (price !== undefined) {
-      this.price = price instanceof Price ? price : new Price(price);
-    }
-  }
-
   public getStock(): Stock {
     return this.stock;
-  }
-
-  public setStock(stock: Stock | number | undefined): void {
-    if (stock !== undefined) {
-      this.stock = stock instanceof Stock ? stock : new Stock(stock);
-    }
   }
 
   public getCategoryId(): string {
     return this.categoryId;
   }
 
-  public setCategoryId(categoryId: string | undefined): void {
-    if (categoryId !== undefined) {
-      this.categoryId = categoryId;
-    }
-  }
-
   public getMerchantId(): string {
     return this.merchantId;
-  }
-
-  public setMerchantId(merchantId: string | undefined): void {
-    if (merchantId !== undefined) {
-      this.merchantId = merchantId;
-    }
   }
 
   public getCreatedAt(): Date | undefined {
     return this.createdAt;
   }
 
-  public setCreatedAt(createdAt: Date | undefined): void {
-    if (createdAt !== undefined) {
-      this.createdAt = createdAt;
-    }
-  }
-
   public getUpdatedAt(): Date | undefined {
     return this.updatedAt;
   }
 
-  public setUpdatedAt(updatedAt: Date | undefined): void {
-    if (updatedAt !== undefined) {
-      this.updatedAt = updatedAt;
-    }
+  public getCategory(): ProductAssociatedCategory | undefined {
+    return this.category;
   }
 
-  public updateDetails(
-    name: string,
-    description: string | null,
-    price: Price,
-  ): void {
-    this.name = name;
-    this.description = description;
-    this.price = price;
+  public getMerchant(): ProductAssociatedMerchant | undefined {
+    return this.merchant;
+  }
+
+  public updateDetails(props: {
+    name: string;
+    description?: string | null;
+    price: Price;
+    categoryId?: string;
+  }): void {
+    if (!props.name || props.name.trim() === '') {
+      throw new Error('Product name cannot be empty');
+    }
+    this.name = props.name;
+    if (props.description !== undefined) {
+      this.description = props.description;
+    }
+    this.price = props.price;
+    if (props.categoryId) {
+      this.categoryId = props.categoryId;
+    }
   }
 
   public reduceStock(quantity: number): void {
@@ -151,42 +137,5 @@ export class Product {
       throw new Error('Quantity to restore must be greater than 0');
     }
     this.stock = this.stock.increase(quantity);
-  }
-
-  static fromPrisma(raw: any): Product {
-    return new Product(
-      raw.id,
-      raw.name,
-      raw.description,
-      new Price(Number(raw.price)),
-      new Stock(raw.stock),
-      raw.categoryId,
-      raw.merchantId,
-      raw.createdAt,
-      raw.updatedAt,
-    );
-  }
-
-  toPrismaCreate(): Prisma.ProductCreateInput {
-    return {
-      id: this.id || undefined,
-      name: this.name,
-      description: this.description,
-      price: new Prisma.Decimal(this.price.getValue()),
-      stock: this.stock.getValue(),
-      category: { connect: { id: this.categoryId } },
-      merchant: { connect: { id: this.merchantId } },
-    };
-  }
-
-  toPrismaUpdate(): Prisma.ProductUpdateInput {
-    return {
-      name: this.name,
-      description: this.description,
-      price: new Prisma.Decimal(this.price.getValue()),
-      stock: this.stock.getValue(),
-      category: { connect: { id: this.categoryId } },
-      merchant: { connect: { id: this.merchantId } },
-    };
   }
 }

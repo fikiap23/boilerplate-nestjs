@@ -25,6 +25,7 @@ import {
   CreateProductDto,
   FilterProductDto,
   UpdateProductDto,
+  ProductResponseDto,
 } from '../dto/product.dto';
 
 @ApiTags('Product')
@@ -42,7 +43,11 @@ export class ProductController {
   async create(@Body() dto: CreateProductDto, @Res() res: Response) {
     try {
       const result = await this.productService.handleCreate(dto);
-      return formatResponse(res, HttpStatus.CREATED, result);
+      return formatResponse(
+        res,
+        HttpStatus.CREATED,
+        ProductResponseDto.fromDomain(result),
+      );
     } catch (error) {
       return errorHandler(res, error);
     }
@@ -59,7 +64,10 @@ export class ProductController {
   ) {
     try {
       const result = await this.productService.handleGetManyPaginate(query);
-      return formatResponse(res, HttpStatus.OK, result.data, result.meta);
+      const mappedData = result.data.map((item) =>
+        ProductResponseDto.fromDomain(item),
+      );
+      return formatResponse(res, HttpStatus.OK, mappedData, result.meta);
     } catch (error) {
       return errorHandler(res, error);
     }
@@ -75,7 +83,11 @@ export class ProductController {
       validateUUID(id, 'product');
 
       const result = await this.productService.handleGetById(id);
-      return formatResponse(res, HttpStatus.OK, result);
+      return formatResponse(
+        res,
+        HttpStatus.OK,
+        ProductResponseDto.fromDomain(result),
+      );
     } catch (error) {
       return errorHandler(res, error);
     }
@@ -97,7 +109,11 @@ export class ProductController {
       validateUUID(id, 'product');
 
       const result = await this.productService.handleUpdateById(id, dto);
-      return formatResponse(res, HttpStatus.OK, result);
+      return formatResponse(
+        res,
+        HttpStatus.OK,
+        ProductResponseDto.fromDomain(result),
+      );
     } catch (error) {
       return errorHandler(res, error);
     }

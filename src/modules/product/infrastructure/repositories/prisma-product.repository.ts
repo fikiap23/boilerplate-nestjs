@@ -1,147 +1,154 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from 'src/infrastructure/prisma/prisma-client';
 import { CacheTags } from 'src/common/utils/cache-tag.util';
-import { IProductRepository } from '../../domain/repositories/product.repository.interface';
+import {
+  IProductRepository,
+  ProductFilter,
+  PaginatedResult,
+} from '../../domain/repositories/product.repository.interface';
 import { Product } from '../../domain/entities/product.entity';
 import { ProductRepository } from '../../repositories/product.repository';
 import { getProductSelect } from '../../types/select-product.type';
-import { FilterProductDto } from '../../presentation/dto/product.dto';
+import { ProductMapper } from '../mappers/product.mapper';
 
 @Injectable()
 export class PrismaProductRepository implements IProductRepository {
   constructor(private readonly baseRepo: ProductRepository) {}
 
-  async create<T extends Prisma.ProductSelect>(options: {
-    data: Product;
-    tx?: Prisma.TransactionClient;
-    select?: T;
-  }): Promise<Prisma.ProductGetPayload<{ select: T }>> {
-    return this.baseRepo.create({
+  async create(options: { data: Product; tx?: any }): Promise<Product> {
+    const raw = await this.baseRepo.create({
       tx: options.tx,
-      data: options.data.toPrismaCreate(),
+      data: ProductMapper.toPersistenceCreate(options.data),
       tags: CacheTags.merchant(options.data.getMerchantId()),
-      select: options.select,
+      select: getProductSelect('general'),
     });
+    return ProductMapper.toDomain(raw);
   }
 
-  async getById<T extends Prisma.ProductSelect>(options: {
+  async getById(options: {
     id: string;
-    tx?: Prisma.TransactionClient;
+    tx?: any;
     setCache?: boolean;
     lock?: { mode: 'noKeyUpdate' | 'update' | 'share' | 'keyShare' };
-    select?: T;
-  }): Promise<Prisma.ProductGetPayload<{ select: T }> | null> {
-    return this.baseRepo.getById({
+  }): Promise<Product | null> {
+    const raw = await this.baseRepo.getById({
       id: options.id,
       tx: options.tx,
       ...(options.lock
         ? { lock: options.lock }
         : { setCache: options.setCache }),
-      select: options.select,
+      select: getProductSelect('general'),
     } as any);
+    return ProductMapper.toDomain(raw);
   }
 
-  async getThrowById<T extends Prisma.ProductSelect>(options: {
+  async getThrowById(options: {
     id: string;
-    tx?: Prisma.TransactionClient;
+    tx?: any;
     setCache?: boolean;
     lock?: { mode: 'noKeyUpdate' | 'update' | 'share' | 'keyShare' };
-    select?: T;
-  }): Promise<Prisma.ProductGetPayload<{ select: T }>> {
-    return this.baseRepo.getThrowById({
+  }): Promise<Product> {
+    const raw = await this.baseRepo.getThrowById({
       id: options.id,
       tx: options.tx,
       ...(options.lock
         ? { lock: options.lock }
         : { setCache: options.setCache }),
-      select: options.select,
+      select: getProductSelect('general'),
     } as any);
+    return ProductMapper.toDomain(raw);
   }
 
-  async getFirst<T extends Prisma.ProductSelect>(options: {
-    where: Prisma.ProductWhereInput;
-    tx?: Prisma.TransactionClient;
+  async getFirst(options: {
+    where: ProductFilter;
+    tx?: any;
     setCache?: boolean;
-    select?: T;
-  }): Promise<Prisma.ProductGetPayload<{ select: T }> | null> {
-    return this.baseRepo.getFirst({
-      where: options.where,
+  }): Promise<Product | null> {
+    const raw = await this.baseRepo.getFirst({
+      where: options.where as any,
       tx: options.tx,
       setCache: options.setCache,
-      select: options.select,
+      select: getProductSelect('general'),
     });
+    return ProductMapper.toDomain(raw);
   }
 
-  async getMany<T extends Prisma.ProductSelect>(options: {
-    where: Prisma.ProductWhereInput;
-    tx?: Prisma.TransactionClient;
+  async getMany(options: {
+    where: ProductFilter;
+    tx?: any;
     setCache?: boolean;
-    select?: T;
-  }): Promise<Prisma.ProductGetPayload<{ select: T }>[]> {
-    return this.baseRepo.getMany({
-      where: options.where,
+  }): Promise<Product[]> {
+    const raws = await this.baseRepo.getMany({
+      where: options.where as any,
       tx: options.tx,
       setCache: options.setCache,
-      select: options.select,
+      select: getProductSelect('general'),
     });
+    return raws.map((raw) => ProductMapper.toDomain(raw));
   }
 
-  async getManyPaginate<T extends Prisma.ProductSelect>(options: {
-    where: Prisma.ProductWhereInput;
+  async getManyPaginate(options: {
+    where: ProductFilter;
     page?: number;
     limit?: number;
-    orderBy?: Prisma.ProductOrderByWithRelationInput;
-    tx?: Prisma.TransactionClient;
+    orderBy?: {
+      field: 'createdAt' | 'updatedAt' | 'name' | 'price';
+      sort: 'asc' | 'desc';
+    };
+    tx?: any;
     setCache?: boolean;
-    cacheTags?: string[] | ((where?: Prisma.ProductWhereInput) => string[]);
-    select?: T;
-  }): Promise<{ data: Prisma.ProductGetPayload<{ select: T }>[]; meta: any }> {
-    return this.baseRepo.getManyPaginate({
-      where: options.where,
+    cacheTags?: string[];
+  }): Promise<PaginatedResult<Product>> {
+    const orderByObj = options.orderBy
+      ? { [options.orderBy.field]: options.orderBy.sort }
+      : undefined;
+
+    const result = await this.baseRepo.getManyPaginate({
+      where: options.where as any,
       page: options.page,
       limit: options.limit,
-      orderBy: options.orderBy,
+      orderBy: orderByObj,
       tx: options.tx,
-      select: options.select,
+      select: getProductSelect('general'),
       setCache: options.setCache,
       cacheTags: options.cacheTags,
     });
+
+    return {
+      data: result.data.map((raw) => ProductMapper.toDomain(raw)),
+      meta: result.meta,
+    };
   }
 
-  async updateById<T extends Prisma.ProductSelect>(options: {
+  async updateById(options: {
     id: string;
     data: Product;
-    tx?: Prisma.TransactionClient;
+    tx?: any;
     invalidate?: 'all' | 'entity' | 'queries' | 'none';
-    select?: T;
-  }): Promise<Prisma.ProductGetPayload<{ select: T }>> {
-    return this.baseRepo.updateById({
+  }): Promise<Product> {
+    const raw = await this.baseRepo.updateById({
       id: options.id,
       tx: options.tx,
-      data: options.data.toPrismaUpdate(),
+      data: ProductMapper.toPersistenceUpdate(options.data),
       tags: (result: any) => CacheTags.merchant(result.merchantId),
       invalidate: options.invalidate,
-      select: options.select,
+      select: getProductSelect('general'),
     });
+    return ProductMapper.toDomain(raw);
   }
 
-  async deleteById<T extends Prisma.ProductSelect>(options: {
-    id: string;
-    tx?: Prisma.TransactionClient;
-    select?: T;
-  }): Promise<Prisma.ProductGetPayload<{ select: T }>> {
-    return this.baseRepo.deleteById({
+  async deleteById(options: { id: string; tx?: any }): Promise<Product> {
+    const raw = await this.baseRepo.deleteById({
       id: options.id,
       tx: options.tx,
       tags: (result: any) => CacheTags.merchant(result.merchantId),
-      select: options.select,
+      select: getProductSelect('general'),
     });
+    return ProductMapper.toDomain(raw);
   }
 
-  async save(product: Product, tx?: Prisma.TransactionClient): Promise<void> {
+  async save(product: Product, tx?: any): Promise<void> {
     const id = product.getId();
 
-    // Check existence to decide create vs update
     const exists = id
       ? await this.baseRepo.getFirst({
           tx,
@@ -154,16 +161,18 @@ export class PrismaProductRepository implements IProductRepository {
       await this.baseRepo.updateById({
         tx,
         id,
-        data: product.toPrismaUpdate(),
-        tags: (result) => CacheTags.merchant(result.merchantId),
+        data: ProductMapper.toPersistenceUpdate(product),
+        tags: (result: any) => CacheTags.merchant(result.merchantId),
         invalidate: tx ? 'none' : 'all',
+        select: { id: true },
       });
     } else {
       const created = await this.baseRepo.create({
         tx,
-        data: product.toPrismaCreate(),
+        data: ProductMapper.toPersistenceCreate(product),
         tags: CacheTags.merchant(product.getMerchantId()),
         invalidate: tx ? 'none' : 'queries',
+        select: { id: true },
       });
       product.setId(created.id);
     }
