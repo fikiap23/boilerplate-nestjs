@@ -25,6 +25,10 @@ export class CreateProductDto {
   @ApiProperty({ example: 'uuid-of-category' })
   @IsUUID()
   categoryId: string;
+
+  @ApiProperty({ example: 'uuid-of-merchant' })
+  @IsUUID()
+  merchantId: string;
 }
 
 export class UpdateProductDto {
@@ -45,6 +49,11 @@ export class UpdateProductDto {
   @IsOptional()
   @IsUUID()
   categoryId?: string;
+
+  @ApiPropertyOptional({ example: 'uuid-of-merchant' })
+  @IsOptional()
+  @IsUUID()
+  merchantId?: string;
 }
 
 export class FilterProductDto extends SearchPaginationDto {
@@ -52,4 +61,9 @@ export class FilterProductDto extends SearchPaginationDto {
   @IsOptional()
   @IsUUID()
   categoryId?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by merchant ID' })
+  @IsOptional()
+  @IsUUID()
+  merchantId?: string;
 }

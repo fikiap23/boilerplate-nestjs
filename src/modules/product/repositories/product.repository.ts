@@ -4,6 +4,7 @@ import {
   createPrismaRepository,
   PrismaRepositoryInstance,
 } from 'src/infrastructure/prisma/create-prisma.repository';
+import { CacheTags } from 'src/common/utils/cache-tag.util';
 import { ProductComposeHelper } from '../helpers/product-compose.helper';
 
 export type ProductPayload<T extends Prisma.ProductSelect> =
@@ -33,6 +34,7 @@ export const ProductRepository = createPrismaRepository<
       getManyPaginate: { ttl: 60 },
       getMany: { ttl: 60 },
     },
+    getTags: (product: any) => CacheTags.shop(product.merchantId),
   },
   getDelegate: (client) => client.product,
   toPayload: <T extends Prisma.ProductSelect>(data: unknown) =>

@@ -28,6 +28,7 @@ export class ProductService {
         name: dto.name,
         price: new Prisma.Decimal(dto.price),
         category: { connect: { id: dto.categoryId } },
+        merchant: { connect: { id: dto.merchantId } },
       },
       select: getProductSelect('general'),
     });
@@ -76,6 +77,9 @@ export class ProductService {
         }),
         ...(dto.categoryId && {
           category: { connect: { id: dto.categoryId } },
+        }),
+        ...(dto.merchantId && {
+          merchant: { connect: { id: dto.merchantId } },
         }),
       },
       select: getProductSelect('general'),

@@ -240,19 +240,44 @@ export function createPrismaRepository<
     method: CacheMethod,
     params: Record<string, unknown>,
     result: unknown,
+    tags?: string[],
   ): Promise<void> {
     const prefix = getPrefix(redis);
     const key = buildQueryKey({ prefix, model: modelName, method, params });
     const isNull = result === null || result === undefined;
     const ttl = applyJitter(isNull ? defaultNullTtl : getMethodTtl(method));
-    const idxKey = queryIndexKey(prefix, modelName);
-    await redis.safeSetWithIndex(
-      key,
-      isNull ? NULL_SENTINEL : result,
-      ttl,
-      idxKey,
-    );
+
+    if (tags && tags.length > 0) {
+      await redis.safeSet(key, isNull ? NULL_SENTINEL : result, ttl);
+      await registerQueryWithTags(redis, key, ttl, tags);
+    } else {
+      const idxKey = queryIndexKey(prefix, modelName);
+      await redis.safeSetWithIndex(
+        key,
+        isNull ? NULL_SENTINEL : result,
+        ttl,
+        idxKey,
+      );
+    }
     await releaseLock(redis, key);
+  }
+
+  async function registerQueryWithTags(
+    redis: RedisService,
+    key: string,
+    ttlSeconds: number,
+    tags: string[],
+  ): Promise<void> {
+    const prefix = getPrefix(redis);
+    const globalIdxKey = queryIndexKey(prefix, modelName);
+
+    const promises = tags.map((tag) => {
+      const idxKey = `${prefix}:repo:${modelName}:t:${tag}:__idx`;
+      return redis.safeSaddAndExpire(idxKey, [key], ttlSeconds);
+    });
+
+    promises.push(redis.safeSaddAndExpire(globalIdxKey, [key], ttlSeconds));
+    await Promise.all(promises);
   }
 
   async function doInvalidateEntity(
@@ -270,11 +295,44 @@ export function createPrismaRepository<
     );
   }
 
+  async function doInvalidateTags(
+    redis: RedisService,
+    tags: string[],
+  ): Promise<void> {
+    const prefix = getPrefix(redis);
+    const keysToDelete: string[] = [];
+    const idxKeysToDelete: string[] = [];
+
+    await Promise.all(
+      tags.map(async (tag) => {
+        const idxKey = `${prefix}:repo:${modelName}:t:${tag}:__idx`;
+        const keys = await redis.safeSmembers(idxKey);
+        if (keys.length > 0) {
+          keysToDelete.push(...keys);
+        }
+        idxKeysToDelete.push(idxKey);
+      }),
+    );
+
+    if (keysToDelete.length > 0) {
+      await redis.safeDel(...new Set(keysToDelete), ...idxKeysToDelete);
+    } else if (idxKeysToDelete.length > 0) {
+      await redis.safeDel(...idxKeysToDelete);
+    }
+  }
+
   async function runInvalidation(
     redis: RedisService,
     mode: InvalidateMode,
     id?: string,
+    tags?: string[],
   ): Promise<void> {
+    if (tags && tags.length > 0) {
+      if (id) await doInvalidateEntity(redis, id);
+      await doInvalidateTags(redis, tags);
+      return;
+    }
+
     switch (mode) {
       case 'all':
         if (id) await doInvalidateEntity(redis, id);
@@ -289,6 +347,20 @@ export function createPrismaRepository<
       case 'none':
         break;
     }
+  }
+
+  function resolveTags(where: any, cacheTags: any): string[] | undefined {
+    if (cacheTags) {
+      return typeof cacheTags === 'function' ? cacheTags(where) : cacheTags;
+    }
+    if (options.cache?.getTags && where) {
+      try {
+        return options.cache.getTags(where);
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
   }
 
   const DUMMY_COMPOSE_TOKEN = 'DUMMY_COMPOSE_TOKEN';
@@ -355,8 +427,12 @@ export function createPrismaRepository<
           data,
           select: dbSelect,
         });
-        if (!tx && canInvalidate(this.redis))
-          await runInvalidation(this.redis, invalidate);
+        if (!tx && canInvalidate(this.redis)) {
+          const tags = options.cache?.getTags
+            ? options.cache.getTags(result)
+            : undefined;
+          await runInvalidation(this.redis, invalidate, undefined, tags);
+        }
         return options.toPayload<T>(result) as Payload<T>;
       });
     }
@@ -499,11 +575,13 @@ export function createPrismaRepository<
       where,
       select,
       setCache,
+      cacheTags,
     }: {
       tx?: Prisma.TransactionClient;
       where?: TWhereInput;
       select?: T;
       setCache?: boolean;
+      cacheTags?: string[] | ((where?: TWhereInput) => string[]);
     }): Promise<Payload<T>> {
       return this.processSelectAndCompose(select, async (dbSelect) => {
         const params = { where, select: dbSelect } as Record<string, unknown>;
@@ -529,7 +607,14 @@ export function createPrismaRepository<
           select: dbSelect,
         });
         if (useCache) {
-          await cacheSetQuery(this.redis, 'getFirst', params, result);
+          const resolvedTags = resolveTags(where, cacheTags);
+          await cacheSetQuery(
+            this.redis,
+            'getFirst',
+            params,
+            result,
+            resolvedTags,
+          );
         }
         return options.toPayload<T>(result) as Payload<T>;
       });
@@ -543,6 +628,7 @@ export function createPrismaRepository<
       take,
       skip,
       setCache,
+      cacheTags,
     }: {
       tx?: Prisma.TransactionClient;
       where?: TWhereInput;
@@ -551,6 +637,7 @@ export function createPrismaRepository<
       take?: number;
       skip?: number;
       setCache?: boolean;
+      cacheTags?: string[] | ((where?: TWhereInput) => string[]);
     }): Promise<Payload<T>[]> {
       return this.processSelectAndCompose(select, async (dbSelect) => {
         const params = {
@@ -587,7 +674,14 @@ export function createPrismaRepository<
           skip,
         });
         if (useCache) {
-          await cacheSetQuery(this.redis, 'getMany', params, results);
+          const resolvedTags = resolveTags(where, cacheTags);
+          await cacheSetQuery(
+            this.redis,
+            'getMany',
+            params,
+            results,
+            resolvedTags,
+          );
         }
         return results.map((item) => options.toPayload<T>(item) as Payload<T>);
       });
@@ -601,6 +695,7 @@ export function createPrismaRepository<
       page = 1,
       limit = 10,
       setCache,
+      cacheTags,
     }: {
       tx?: Prisma.TransactionClient;
       where?: TWhereInput;
@@ -609,6 +704,7 @@ export function createPrismaRepository<
       page?: number;
       limit?: number;
       setCache?: boolean;
+      cacheTags?: string[] | ((where?: TWhereInput) => string[]);
     }): Promise<IPaginatedResult<Payload<T>>> {
       return this.processSelectAndCompose(select, async (dbSelect) => {
         const params = {
@@ -641,7 +737,14 @@ export function createPrismaRepository<
           { page, perPage: limit },
         )) as IPaginatedResult<Payload<T>>;
         if (useCache) {
-          await cacheSetQuery(this.redis, 'getManyPaginate', params, result);
+          const resolvedTags = resolveTags(where, cacheTags);
+          await cacheSetQuery(
+            this.redis,
+            'getManyPaginate',
+            params,
+            result,
+            resolvedTags,
+          );
         }
         return result;
       });
@@ -667,7 +770,10 @@ export function createPrismaRepository<
           select: dbSelect,
         });
         if (!tx && canInvalidate(this.redis)) {
-          await runInvalidation(this.redis, invalidate, id);
+          const tags = options.cache?.getTags
+            ? options.cache.getTags(result)
+            : undefined;
+          await runInvalidation(this.redis, invalidate, id, tags);
         }
         return options.toPayload<T>(result) as Payload<T>;
       });
@@ -690,7 +796,10 @@ export function createPrismaRepository<
           select: dbSelect,
         });
         if (!tx && canInvalidate(this.redis)) {
-          await runInvalidation(this.redis, invalidate, id);
+          const tags = options.cache?.getTags
+            ? options.cache.getTags(result)
+            : undefined;
+          await runInvalidation(this.redis, invalidate, id, tags);
         }
         return options.toPayload<T>(result) as Payload<T>;
       });

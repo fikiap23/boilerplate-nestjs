@@ -170,4 +170,46 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`safeDel failed`, (err as Error).message);
     }
   }
+
+  async safeSet(
+    key: string,
+    value: unknown,
+    ttlSeconds: number,
+  ): Promise<void> {
+    try {
+      await this.set(key, value, ttlSeconds);
+    } catch (err) {
+      this.logger.warn(`safeSet failed for key=${key}`, (err as Error).message);
+    }
+  }
+
+  async safeSaddAndExpire(
+    key: string,
+    members: string[],
+    ttlSeconds: number,
+  ): Promise<void> {
+    try {
+      const pipeline = this.client.pipeline();
+      pipeline.sadd(key, ...members);
+      pipeline.expire(key, ttlSeconds + INDEX_TTL_BUFFER);
+      await pipeline.exec();
+    } catch (err) {
+      this.logger.warn(
+        `safeSaddAndExpire failed for key=${key}`,
+        (err as Error).message,
+      );
+    }
+  }
+
+  async safeSmembers(key: string): Promise<string[]> {
+    try {
+      return await this.smembers(key);
+    } catch (err) {
+      this.logger.warn(
+        `safeSmembers failed for key=${key}`,
+        (err as Error).message,
+      );
+      return [];
+    }
+  }
 }

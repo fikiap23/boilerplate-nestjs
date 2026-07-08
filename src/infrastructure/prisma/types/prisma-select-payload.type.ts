@@ -8,6 +8,7 @@ export const PRISMA_SELECT_PAYLOAD_MODEL_KEYS = [
   'admin',
   'category',
   'product',
+  'merchant',
 ] as const;
 
 export type PrismaSelectPayloadMapKey =
@@ -21,6 +22,7 @@ export interface PrismaSelectPayloadMap {
   admin: Prisma.AdminSelect;
   category: Prisma.CategorySelect;
   product: Prisma.ProductSelect;
+  merchant: Prisma.MerchantSelect;
 }
 
 type RepoModel = keyof PrismaSelectPayloadMap;
@@ -32,6 +34,7 @@ type GetPayloadForModel<
   admin: Prisma.AdminGetPayload<{ select: TSelect }>;
   category: Prisma.CategoryGetPayload<{ select: TSelect }>;
   product: Prisma.ProductGetPayload<{ select: TSelect }>;
+  merchant: Prisma.MerchantGetPayload<{ select: TSelect }>;
 }[TRepoModel];
 
 /**

@@ -14,6 +14,7 @@ import databaseConfig from './config/database.config';
 import appConfig from './config/app.config';
 import redisConfig from './config/redis.config';
 import { validate } from './config/env.validation';
+import { MerchantModule } from './modules/merchant/merchant.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { validate } from './config/env.validation';
     AdminModule,
     MasterDataModule,
     ProductModule,
+    MerchantModule,
   ],
   providers: [
     {
