@@ -98,6 +98,19 @@ Operasi write akan secara otomatis menghapus cache yang relevan di Redis sesaat 
     Menghapus data berdasarkan ID. Invalidation default: `'all'`.
 *   **`invalidateCache({ id?, tags? })`**
     Method utilitas untuk melakukan invalidasi cache secara manual. Berguna untuk membersihkan data entitas berdasarkan ID dan/atau sekumpulan cache tags secara spesifik.
+    > [!IMPORTANT]
+    > Selalu gunakan utility helper terpusat `CacheTags` (misalnya `CacheTags.merchant(id)`) saat mengisi parameter `tags`. Hindari menuliskan string tag secara manual (seperti `['merchant:xyz']`) untuk mencegah kesalahan pengetikan (*typo*).
+
+    Contoh penggunaan:
+    ```typescript
+    import { CacheTags } from 'src/common/utils/cache-tag.util';
+
+    // Bersihkan entitas berdasarkan ID sekaligus membersihkan list query milik merchant tertentu
+    await this.productRepository.invalidateCache({
+      id: productId,
+      tags: CacheTags.merchant(merchantId),
+    });
+    ```
 
 ---
 
@@ -491,9 +504,11 @@ async handleBulkUpdatePrice(merchantId: string, discountRate: number) {
     // afterCommit berjalan hanya setelah transaksi database berhasil dicommit ke PG
     async () => {
       // Bersihkan cache entity satu per satu secara paralel di Redis
-      await Promise.all(
-        productIds.map((id) => this.productRepository.invalidateCache({ id }))
-      );
+      // Serta bersihkan list query yang berkaitan dengan merchant tersebut secara type-safe
+      await Promise.all([
+        ...productIds.map((id) => this.productRepository.invalidateCache({ id })),
+        this.productRepository.invalidateCache({ tags: CacheTags.merchant(merchantId) }),
+      ]);
     }
   );
 }
