@@ -30,6 +30,6 @@ export function getProductSelect<K extends ProductSelectPresetKey>(key: K) {
   return productSelectPresets[key];
 }
 
-export function splitProductSelect(select: Prisma.ProductSelect) {
+export function splitProductSelect<T extends Prisma.ProductSelect>(select: T) {
   return splitSelect(select, Prisma.ProductScalarFieldEnum);
 }
