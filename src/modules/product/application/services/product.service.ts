@@ -41,6 +41,7 @@ export class ProductService {
 
     return this.productRepository.create({
       data: product,
+      tags: CacheTags.merchant(dto.merchantId),
     });
   }
 
@@ -91,16 +92,20 @@ export class ProductService {
     return this.productRepository.updateById({
       id,
       data: product,
+      tags: (result: Product) => CacheTags.merchant(result.getMerchantId()),
     });
   }
 
   async handleDeleteById(id: string): Promise<Product> {
     return this.productRepository.deleteById({
       id,
+      tags: (result: Product) => CacheTags.merchant(result.getMerchantId()),
     });
   }
 
   async handleReduceStock(id: string, quantity: number): Promise<void> {
+    let merchantId: string;
+
     await this.prisma.execTx(
       async (tx) => {
         const product = await this.productRepository.getThrowById({
@@ -110,6 +115,7 @@ export class ProductService {
         });
 
         product.reduceStock(quantity);
+        merchantId = product.getMerchantId();
 
         await this.productRepository.updateById({
           tx,
@@ -120,11 +126,16 @@ export class ProductService {
       },
       async () => {
         await this.productRepository.invalidateCache({ id });
+        await this.productRepository.invalidateCache({
+          tags: CacheTags.merchant(merchantId),
+        });
       },
     );
   }
 
   async handleRestoreStock(id: string, quantity: number): Promise<void> {
+    let merchantId: string;
+
     await this.prisma.execTx(
       async (tx) => {
         const product = await this.productRepository.getThrowById({
@@ -134,6 +145,7 @@ export class ProductService {
         });
 
         product.restoreStock(quantity);
+        merchantId = product.getMerchantId();
 
         await this.productRepository.updateById({
           tx,
@@ -144,6 +156,9 @@ export class ProductService {
       },
       async () => {
         await this.productRepository.invalidateCache({ id });
+        await this.productRepository.invalidateCache({
+          tags: CacheTags.merchant(merchantId),
+        });
       },
     );
   }

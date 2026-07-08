@@ -19,7 +19,12 @@ export interface PaginatedResult<T> {
 }
 
 export interface IProductRepository {
-  create(options: { data: Product; tx?: any }): Promise<Product>;
+  create(options: {
+    data: Product;
+    tx?: any;
+    invalidate?: 'all' | 'entity' | 'queries' | 'none';
+    tags?: string[] | ((result: Product) => string[]);
+  }): Promise<Product>;
 
   getById(options: {
     id: string;
@@ -65,9 +70,15 @@ export interface IProductRepository {
     data: Product;
     tx?: any;
     invalidate?: 'all' | 'entity' | 'queries' | 'none';
+    tags?: string[] | ((result: Product) => string[]);
   }): Promise<Product>;
 
-  deleteById(options: { id: string; tx?: any }): Promise<Product>;
+  deleteById(options: {
+    id: string;
+    tx?: any;
+    invalidate?: 'all' | 'entity' | 'queries' | 'none';
+    tags?: string[] | ((result: Product) => string[]);
+  }): Promise<Product>;
 
   save(product: Product, tx?: any): Promise<void>;
 

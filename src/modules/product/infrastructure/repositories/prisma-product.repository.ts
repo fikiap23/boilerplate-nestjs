@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { CacheTags } from 'src/common/utils/cache-tag.util';
 import {
   IProductRepository,
   ProductFilter,
@@ -7,6 +6,7 @@ import {
 } from '../../domain/repositories/product.repository.interface';
 import { Product } from '../../domain/entities/product.entity';
 import { ProductRepository } from '../../repositories/product.repository';
+import { CacheTags } from 'src/common/utils/cache-tag.util';
 import { getProductSelect } from '../../types/select-product.type';
 import { ProductMapper } from '../mappers/product.mapper';
 
@@ -14,11 +14,23 @@ import { ProductMapper } from '../mappers/product.mapper';
 export class PrismaProductRepository implements IProductRepository {
   constructor(private readonly baseRepo: ProductRepository) {}
 
-  async create(options: { data: Product; tx?: any }): Promise<Product> {
+  async create(options: {
+    data: Product;
+    tx?: any;
+    invalidate?: 'all' | 'entity' | 'queries' | 'none';
+    tags?: string[] | ((result: Product) => string[]);
+  }): Promise<Product> {
     const raw = await this.baseRepo.create({
       tx: options.tx,
       data: ProductMapper.toPersistenceCreate(options.data),
-      tags: CacheTags.merchant(options.data.getMerchantId()),
+      invalidate: options.invalidate,
+      tags:
+        typeof options.tags === 'function'
+          ? (rawResult: any) =>
+              (options.tags as (res: Product) => string[])(
+                ProductMapper.toDomain(rawResult),
+              )
+          : options.tags,
       select: getProductSelect('general'),
     });
     return ProductMapper.toDomain(raw);
@@ -124,23 +136,42 @@ export class PrismaProductRepository implements IProductRepository {
     data: Product;
     tx?: any;
     invalidate?: 'all' | 'entity' | 'queries' | 'none';
+    tags?: string[] | ((result: Product) => string[]);
   }): Promise<Product> {
     const raw = await this.baseRepo.updateById({
       id: options.id,
       tx: options.tx,
       data: ProductMapper.toPersistenceUpdate(options.data),
-      tags: (result: any) => CacheTags.merchant(result.merchantId),
       invalidate: options.invalidate,
+      tags:
+        typeof options.tags === 'function'
+          ? (rawResult: any) =>
+              (options.tags as (res: Product) => string[])(
+                ProductMapper.toDomain(rawResult),
+              )
+          : options.tags,
       select: getProductSelect('general'),
     });
     return ProductMapper.toDomain(raw);
   }
 
-  async deleteById(options: { id: string; tx?: any }): Promise<Product> {
+  async deleteById(options: {
+    id: string;
+    tx?: any;
+    invalidate?: 'all' | 'entity' | 'queries' | 'none';
+    tags?: string[] | ((result: Product) => string[]);
+  }): Promise<Product> {
     const raw = await this.baseRepo.deleteById({
       id: options.id,
       tx: options.tx,
-      tags: (result: any) => CacheTags.merchant(result.merchantId),
+      invalidate: options.invalidate,
+      tags:
+        typeof options.tags === 'function'
+          ? (rawResult: any) =>
+              (options.tags as (res: Product) => string[])(
+                ProductMapper.toDomain(rawResult),
+              )
+          : options.tags,
       select: getProductSelect('general'),
     });
     return ProductMapper.toDomain(raw);
@@ -162,16 +193,16 @@ export class PrismaProductRepository implements IProductRepository {
         tx,
         id,
         data: ProductMapper.toPersistenceUpdate(product),
-        tags: (result: any) => CacheTags.merchant(result.merchantId),
         invalidate: tx ? 'none' : 'all',
+        tags: (result: any) => CacheTags.merchant(result.merchantId),
         select: { id: true },
       });
     } else {
       const created = await this.baseRepo.create({
         tx,
         data: ProductMapper.toPersistenceCreate(product),
-        tags: CacheTags.merchant(product.getMerchantId()),
         invalidate: tx ? 'none' : 'queries',
+        tags: CacheTags.merchant(product.getMerchantId()),
         select: { id: true },
       });
       product.setId(created.id);
