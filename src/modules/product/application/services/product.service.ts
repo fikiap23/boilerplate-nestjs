@@ -82,16 +82,11 @@ export class ProductService {
       );
     }
 
-    product.updateDetails({
-      name: dto.name ?? product.getName(),
-      description:
-        dto.description !== undefined
-          ? dto.description
-          : product.getDescription(),
-      price:
-        dto.price !== undefined ? new Price(dto.price) : product.getPrice(),
-      categoryId: dto.categoryId,
-    });
+    product.setName(dto.name);
+    product.setDescription(dto.description);
+    product.setPrice(dto.price);
+    product.setStock(dto.stock);
+    product.setCategoryId(dto.categoryId);
 
     return this.productRepository.updateById({
       id,

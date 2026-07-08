@@ -67,24 +67,63 @@ export class Product {
     return this.name;
   }
 
+  public setName(name: string | undefined): void {
+    if (name !== undefined) {
+      if (name.trim() === '') {
+        throw new Error('Product name cannot be empty');
+      }
+      this.name = name;
+    }
+  }
+
   public getDescription(): string | null {
     return this.description;
+  }
+
+  public setDescription(description: string | null | undefined): void {
+    if (description !== undefined) {
+      this.description = description;
+    }
   }
 
   public getPrice(): Price {
     return this.price;
   }
 
+  public setPrice(price: Price | number | undefined): void {
+    if (price !== undefined) {
+      this.price = price instanceof Price ? price : new Price(price);
+    }
+  }
+
   public getStock(): Stock {
     return this.stock;
+  }
+
+  public setStock(stock: Stock | number | undefined): void {
+    if (stock !== undefined) {
+      this.stock = stock instanceof Stock ? stock : new Stock(stock);
+    }
   }
 
   public getCategoryId(): string {
     return this.categoryId;
   }
 
+  public setCategoryId(categoryId: string | undefined): void {
+    if (categoryId !== undefined) {
+      this.categoryId = categoryId;
+    }
+  }
+
   public getMerchantId(): string {
     return this.merchantId;
+  }
+
+  public setMerchantId(merchantId: string | undefined): void {
+    if (merchantId !== undefined) {
+      this.merchantId = merchantId;
+    }
   }
 
   public getCreatedAt(): Date | undefined {
