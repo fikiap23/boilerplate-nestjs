@@ -30,12 +30,12 @@ export interface ProductProps {
 
 export class Product {
   private id: string | null = null;
-  private name: string;
+  private name: string = '';
   private description: string | null = null;
-  private price: Price;
-  private stock: Stock;
-  private categoryId: string;
-  private merchantId: string;
+  private price: Price = new Price(0);
+  private stock: Stock = new Stock(0);
+  private categoryId: string = '';
+  private merchantId: string = '';
   private createdAt?: Date;
   private updatedAt?: Date;
   private category?: ProductAssociatedCategory;
@@ -142,23 +142,17 @@ export class Product {
     return this.merchant;
   }
 
-  public updateDetails(props: {
-    name: string;
-    description?: string | null;
-    price: Price;
-    categoryId?: string;
-  }): void {
-    if (!props.name || props.name.trim() === '') {
+  public updateDetails(
+    name: string,
+    description: string | null,
+    price: Price,
+  ): void {
+    if (!name || name.trim() === '') {
       throw new Error('Product name cannot be empty');
     }
-    this.name = props.name;
-    if (props.description !== undefined) {
-      this.description = props.description;
-    }
-    this.price = props.price;
-    if (props.categoryId) {
-      this.categoryId = props.categoryId;
-    }
+    this.name = name;
+    this.description = description;
+    this.price = price;
   }
 
   public reduceStock(quantity: number): void {

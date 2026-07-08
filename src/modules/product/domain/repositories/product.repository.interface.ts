@@ -71,5 +71,5 @@ export interface IProductRepository {
 
   save(product: Product, tx?: any): Promise<void>;
 
-  invalidateCache(options: { id?: string }): Promise<void>;
+  invalidateCache(options: { id?: string; tags?: string[] }): Promise<void>;
 }

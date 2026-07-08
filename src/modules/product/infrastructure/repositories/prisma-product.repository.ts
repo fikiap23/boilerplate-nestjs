@@ -178,7 +178,10 @@ export class PrismaProductRepository implements IProductRepository {
     }
   }
 
-  async invalidateCache(options: { id?: string }): Promise<void> {
+  async invalidateCache(options: {
+    id?: string;
+    tags?: string[];
+  }): Promise<void> {
     await this.baseRepo.invalidateCache(options);
   }
 }

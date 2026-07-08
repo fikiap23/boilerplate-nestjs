@@ -7,15 +7,15 @@ describe('Product Domain Entity', () => {
   let product: Product;
 
   beforeEach(() => {
-    product = new Product(
-      'p-1',
-      'Test Product',
-      'Test Description',
-      new Price(100.0),
-      new Stock(50),
-      'cat-1',
-      'merch-1',
-    );
+    product = new Product({
+      id: 'p-1',
+      name: 'Test Product',
+      description: 'Test Description',
+      price: new Price(100.0),
+      stock: new Stock(50),
+      categoryId: 'cat-1',
+      merchantId: 'merch-1',
+    });
   });
 
   it('should be created with initial attributes', () => {
