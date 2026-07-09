@@ -12,7 +12,7 @@ export class ProductValidatePolicy {
   ) {}
 
   async validateCategoryExists(categoryId: string): Promise<void> {
-    const category = await this.categoryClient.getCategory(categoryId);
+    const category = await this.categoryClient.getCategoryById(categoryId);
     if (!category) {
       throw new CustomError({
         statusCode: 404,
@@ -22,7 +22,7 @@ export class ProductValidatePolicy {
   }
 
   async validateMerchantExists(merchantId: string): Promise<void> {
-    const merchant = await this.merchantClient.getMerchant(merchantId);
+    const merchant = await this.merchantClient.getMerchantById(merchantId);
     if (!merchant) {
       throw new CustomError({
         statusCode: 404,

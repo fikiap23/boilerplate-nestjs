@@ -11,7 +11,7 @@ export class CategoryClientImpl implements CategoryClient {
     private readonly getCategoryManyIdsUseCase: GetCategoryManyIdsUseCase,
   ) {}
 
-  async getCategory(id: string): Promise<CategoryClientResponse | null> {
+  async getCategoryById(id: string): Promise<CategoryClientResponse | null> {
     try {
       const category = await this.getCategoryByIdUseCase.execute(id);
       if (!category) return null;

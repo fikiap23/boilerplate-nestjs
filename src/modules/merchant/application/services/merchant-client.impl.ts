@@ -11,7 +11,7 @@ export class MerchantClientImpl implements MerchantClient {
     private readonly getMerchantManyIdsUseCase: GetMerchantManyIdsUseCase,
   ) {}
 
-  async getMerchant(id: string): Promise<MerchantClientResponse | null> {
+  async getMerchantById(id: string): Promise<MerchantClientResponse | null> {
     try {
       const merchant = await this.getMerchantByIdUseCase.execute(id);
       if (!merchant) return null;

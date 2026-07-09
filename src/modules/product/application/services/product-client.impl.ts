@@ -13,7 +13,7 @@ export class ProductClientImpl implements ProductClient {
     private readonly restoreProductStockUseCase: RestoreProductStockUseCase,
   ) {}
 
-  async getProduct(id: string): Promise<ProductClientResponse | null> {
+  async getProductById(id: string): Promise<ProductClientResponse | null> {
     try {
       const product = await this.getProductByIdUseCase.execute(id);
       if (!product) return null;

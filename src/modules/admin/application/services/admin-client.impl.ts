@@ -16,7 +16,7 @@ export class AdminClientImpl implements AdminClient {
     private readonly updateAdminLastLoginUseCase: UpdateAdminLastLoginUseCase,
   ) {}
 
-  async getAdmin(id: string): Promise<AdminClientResponse | null> {
+  async getAdminById(id: string): Promise<AdminClientResponse | null> {
     try {
       const admin = await this.getAdminByIdUseCase.execute(id);
       if (!admin) return null;
