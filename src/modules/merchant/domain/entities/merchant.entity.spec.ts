@@ -36,8 +36,9 @@ describe('Merchant Domain Entity', () => {
       );
     });
 
-    it('should update name and slug via updateDetails', () => {
-      merchant.updateDetails('New Merchant', 'new-merchant');
+    it('should update name and slug via setters', () => {
+      merchant.setName('New Merchant');
+      merchant.setSlug('new-merchant');
       expect(merchant.getName()).toBe('New Merchant');
       expect(merchant.getSlug()).toBe('new-merchant');
     });

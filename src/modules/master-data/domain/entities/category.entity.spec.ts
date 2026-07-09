@@ -36,8 +36,9 @@ describe('Category Domain Entity', () => {
       );
     });
 
-    it('should update name and slug via updateDetails', () => {
-      category.updateDetails('New Electronics', 'new-electronics');
+    it('should update name and slug via setters', () => {
+      category.setName('New Electronics');
+      category.setSlug('new-electronics');
       expect(category.getName()).toBe('New Electronics');
       expect(category.getSlug()).toBe('new-electronics');
     });

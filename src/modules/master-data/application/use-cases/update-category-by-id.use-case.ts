@@ -24,7 +24,8 @@ export class UpdateCategoryByIdUseCase {
       );
     }
 
-    category.updateDetails(dto.name, dto.slug);
+    category.setName(dto.name);
+    category.setSlug(dto.slug);
 
     return await this.categoryRepository.updateById({
       id,

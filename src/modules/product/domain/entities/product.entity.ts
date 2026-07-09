@@ -142,19 +142,6 @@ export class Product {
     return this.merchant;
   }
 
-  public updateDetails(
-    name: string,
-    description: string | null,
-    price: Price,
-  ): void {
-    if (!name || name.trim() === '') {
-      throw new Error('Product name cannot be empty');
-    }
-    this.name = name;
-    this.description = description;
-    this.price = price;
-  }
-
   public reduceStock(quantity: number): void {
     if (quantity <= 0) {
       throw new Error('Quantity to reduce must be greater than 0');

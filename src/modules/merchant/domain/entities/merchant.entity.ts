@@ -62,9 +62,4 @@ export class Merchant {
   public getUpdatedAt(): Date | undefined {
     return this.updatedAt;
   }
-
-  public updateDetails(name?: string, slug?: string): void {
-    if (name !== undefined) this.setName(name);
-    if (slug !== undefined) this.setSlug(slug);
-  }
 }

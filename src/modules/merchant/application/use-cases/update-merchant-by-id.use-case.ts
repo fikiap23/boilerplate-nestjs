@@ -28,7 +28,8 @@ export class UpdateMerchantByIdUseCase {
       }
     }
 
-    merchant.updateDetails(dto.name, dto.slug);
+    merchant.setName(dto.name);
+    merchant.setSlug(dto.slug);
 
     return await this.merchantRepository.updateById({
       id,

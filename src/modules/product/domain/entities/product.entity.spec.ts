@@ -65,13 +65,11 @@ describe('Product Domain Entity', () => {
     });
   });
 
-  describe('updateDetails', () => {
+  describe('setters', () => {
     it('should update name, description, and price', () => {
-      product.updateDetails(
-        'Updated Product',
-        'Updated Description',
-        new Price(150.0),
-      );
+      product.setName('Updated Product');
+      product.setDescription('Updated Description');
+      product.setPrice(new Price(150.0));
       expect(product.getName()).toBe('Updated Product');
       expect(product.getDescription()).toBe('Updated Description');
       expect(product.getPrice().getValue()).toBe(150.0);
