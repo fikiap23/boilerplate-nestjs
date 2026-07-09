@@ -1,16 +1,14 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { IPayloadJWT } from 'src/shared/interfaces/auth.interface';
-import { IAdminRepository } from 'src/modules/admin/domain/repositories/admin.repository.interface';
-import { getAdminSelect } from 'src/modules/admin/types/select-admin.type';
+import { AdminClient } from 'src/modules/admin/client/admin.client';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
-    @Inject('IAdminRepository')
-    private readonly adminRepository: IAdminRepository,
+    private readonly adminClient: AdminClient,
     configService: ConfigService,
   ) {
     super({
@@ -20,10 +18,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: IPayloadJWT) {
-    const userAdmin = await this.adminRepository.getById({
-      id: payload.sub,
-      select: getAdminSelect('minimal'),
-    });
+    const userAdmin = await this.adminClient.getAdmin(payload.sub);
     if (userAdmin) return payload;
     return false;
   }

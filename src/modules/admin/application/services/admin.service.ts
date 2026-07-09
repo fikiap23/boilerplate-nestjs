@@ -10,6 +10,7 @@ import {
   PaginatedResult,
 } from '../../domain/repositories/admin.repository.interface';
 import { Admin } from '../../domain/entities/admin.entity';
+import { getAdminSelect } from '../../types/select-admin.type';
 import {
   CreateAdminDto,
   FilterAdminDto,
@@ -149,5 +150,22 @@ export class AdminService {
     await this.adminRoleGuardHelper.assertSuperAdmin(sub);
     await this.adminRepository.getThrowById({ id });
     return await this.adminRepository.deleteById({ id });
+  }
+
+  async handleGetByEmailForAuth(email: string): Promise<Admin | null> {
+    return await this.adminRepository.getFirst({
+      where: { email },
+      select: getAdminSelect('withPassword'),
+    });
+  }
+
+  async handleUpdateLastLogin(id: string): Promise<void> {
+    const admin = await this.adminRepository.getThrowById({ id });
+    admin.setLastLoginAt(new Date());
+    await this.adminRepository.updateById({
+      id,
+      data: admin,
+      invalidate: 'none',
+    });
   }
 }

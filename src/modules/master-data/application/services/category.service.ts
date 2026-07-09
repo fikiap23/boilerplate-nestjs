@@ -84,4 +84,11 @@ export class CategoryService {
     await this.categoryRepository.getThrowById({ id });
     return await this.categoryRepository.deleteById({ id });
   }
+
+  async handleGetManyByIds(ids: string[]): Promise<Category[]> {
+    return await this.categoryRepository.getMany({
+      where: { id: { in: ids } },
+      setCache: true,
+    });
+  }
 }

@@ -1,16 +1,19 @@
 import { Injectable } from '@nestjs/common';
 
-import { CategoryRepository } from 'src/modules/master-data/repositories/category.repository';
-import { getCategorySelect } from 'src/modules/master-data/types/select-category.type';
+import { CustomError } from 'src/common/exceptions/custom-error';
+import { CategoryClient } from 'src/modules/master-data/client/category.client';
 
 @Injectable()
 export class ProductCategoryValidateHelper {
-  constructor(private readonly categoryRepository: CategoryRepository) {}
+  constructor(private readonly categoryClient: CategoryClient) {}
 
   async validateCategoryExists(categoryId: string): Promise<void> {
-    await this.categoryRepository.getThrowById({
-      id: categoryId,
-      select: getCategorySelect('minimal'),
-    });
+    const category = await this.categoryClient.getCategory(categoryId);
+    if (!category) {
+      throw new CustomError({
+        statusCode: 404,
+        message: 'Category not found',
+      });
+    }
   }
 }

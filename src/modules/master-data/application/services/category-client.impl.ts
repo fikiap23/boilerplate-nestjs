@@ -20,4 +20,17 @@ export class CategoryClientImpl implements CategoryClient {
       return null;
     }
   }
+
+  async getCategoriesByIds(ids: string[]): Promise<CategoryClientResponse[]> {
+    try {
+      const categories = await this.categoryService.handleGetManyByIds(ids);
+      return categories.map((category) => ({
+        id: category.getId(),
+        name: category.getName(),
+        slug: category.getSlug(),
+      }));
+    } catch {
+      return [];
+    }
+  }
 }

@@ -1,23 +1,16 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 import { CustomError } from 'src/common/exceptions/custom-error';
 import { compareBcrypt } from 'src/common/utils/bcrypt.util';
-import { IAdminRepository } from 'src/modules/admin/domain/repositories/admin.repository.interface';
-import { getAdminSelect } from 'src/modules/admin/types/select-admin.type';
+import { AdminClient } from 'src/modules/admin/client/admin.client';
 import { LoginDto } from '../presentation/dto/login.dto';
 
 @Injectable()
 export class AuthAuthenticateHelper {
-  constructor(
-    @Inject('IAdminRepository')
-    private readonly adminRepository: IAdminRepository,
-  ) {}
+  constructor(private readonly adminClient: AdminClient) {}
 
   async authenticate(dto: LoginDto) {
-    const admin = await this.adminRepository.getFirst({
-      where: { email: dto.email },
-      select: getAdminSelect('withPassword'),
-    });
+    const admin = await this.adminClient.getAdminByEmailForAuth(dto.email);
 
     if (!admin) {
       throw new CustomError({
@@ -26,7 +19,7 @@ export class AuthAuthenticateHelper {
       });
     }
 
-    const isMatch = await compareBcrypt(dto.password, admin.getPassword());
+    const isMatch = await compareBcrypt(dto.password, admin.passwordHash);
     if (!isMatch) {
       throw new CustomError({
         statusCode: 401,

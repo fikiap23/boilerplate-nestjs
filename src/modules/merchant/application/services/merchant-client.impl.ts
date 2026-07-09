@@ -20,4 +20,17 @@ export class MerchantClientImpl implements MerchantClient {
       return null;
     }
   }
+
+  async getMerchantsByIds(ids: string[]): Promise<MerchantClientResponse[]> {
+    try {
+      const merchants = await this.merchantService.handleGetManyByIds(ids);
+      return merchants.map((merchant) => ({
+        id: merchant.getId(),
+        name: merchant.getName(),
+        slug: merchant.getSlug(),
+      }));
+    } catch {
+      return [];
+    }
+  }
 }

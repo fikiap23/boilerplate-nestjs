@@ -1,22 +1,22 @@
 import { Injectable } from '@nestjs/common';
 
-import { CategoryRepository } from 'src/modules/master-data/repositories/category.repository';
-import { MerchantRepository } from 'src/modules/merchant/repositories/merchant.repository';
+import { CategoryClient } from 'src/modules/master-data/client/category.client';
+import { MerchantClient } from 'src/modules/merchant/client/merchant.client';
 import { BaseComposeHelper } from 'src/common/utils/base-compose.helper';
 
 @Injectable()
 export class ProductComposeHelper extends BaseComposeHelper {
   constructor(
-    private readonly categoryRepository: CategoryRepository,
-    private readonly merchantRepository: MerchantRepository,
+    private readonly categoryClient: CategoryClient,
+    private readonly merchantClient: MerchantClient,
   ) {
     super({
       category: {
-        repository: categoryRepository,
+        loader: (ids) => categoryClient.getCategoriesByIds(ids),
         type: 'one',
       },
       merchant: {
-        repository: merchantRepository,
+        loader: (ids) => merchantClient.getMerchantsByIds(ids),
         type: 'one',
       },
     });

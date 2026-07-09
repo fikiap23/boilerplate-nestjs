@@ -1,5 +1,6 @@
 export interface RelationConfig {
-  repository: any; // Target NestJS Repository
+  repository?: any; // Target NestJS Repository
+  loader?: (ids: string[]) => Promise<any[]>; // Custom loader function (e.g. from client)
   type: 'one' | 'many'; // Relation multiplicity
   foreignKey?: string; // Source model foreign key (defaults to `${relationName}Id` for 'one')
   targetForeignKey?: string; // Target model foreign key (required for 'many', e.g. 'productId')
@@ -60,11 +61,15 @@ export class BaseComposeHelper {
 
           let entities: any[] = [];
           if (ids.length) {
-            entities = await config.repository.getMany({
-              where: { id: { in: ids } },
-              select: targetDbSelect,
-              setCache: true,
-            });
+            if (config.loader) {
+              entities = await config.loader(ids);
+            } else if (config.repository) {
+              entities = await config.repository.getMany({
+                where: { id: { in: ids } },
+                select: targetDbSelect,
+                setCache: true,
+              });
+            }
 
             // Recursively compose nested relations
             if (config.composeHelper && targetDbSelect) {
@@ -89,11 +94,15 @@ export class BaseComposeHelper {
 
           let entities: any[] = [];
           if (parentIds.length) {
-            entities = await config.repository.getMany({
-              where: { [targetFk]: { in: parentIds } },
-              select: targetDbSelect,
-              setCache: true,
-            });
+            if (config.loader) {
+              entities = await config.loader(parentIds);
+            } else if (config.repository) {
+              entities = await config.repository.getMany({
+                where: { [targetFk]: { in: parentIds } },
+                select: targetDbSelect,
+                setCache: true,
+              });
+            }
 
             // Recursively compose nested relations
             if (config.composeHelper && targetDbSelect) {

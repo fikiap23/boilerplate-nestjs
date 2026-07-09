@@ -96,4 +96,11 @@ export class MerchantService {
     await this.merchantRepository.getThrowById({ id });
     return await this.merchantRepository.deleteById({ id });
   }
+
+  async handleGetManyByIds(ids: string[]): Promise<Merchant[]> {
+    return await this.merchantRepository.getMany({
+      where: { id: { in: ids } },
+      setCache: true,
+    });
+  }
 }
