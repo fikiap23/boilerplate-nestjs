@@ -83,17 +83,28 @@ export function renderModuleFiles(
     { template: 'module', output: `${names.kebab}.module.ts` },
     {
       template: 'controller',
-      output: path.join('controllers', `${names.kebab}.controller.ts`),
+      output: path.join(
+        'presentation',
+        'controllers',
+        `${names.kebab}.controller.ts`,
+      ),
     },
     {
       template: 'service',
-      output: path.join('services', `${names.kebab}.service.ts`),
+      output: path.join(
+        'application',
+        'services',
+        `${names.kebab}.service.ts`,
+      ),
     },
     {
       template: 'repository',
       output: path.join('repositories', `${names.kebab}.repository.ts`),
     },
-    { template: 'dto', output: path.join('dto', `${names.kebab}.dto.ts`) },
+    {
+      template: 'dto',
+      output: path.join('presentation', 'dto', `${names.kebab}.dto.ts`),
+    },
     {
       template: 'select',
       output: path.join('types', `select-${names.kebab}.type.ts`),
@@ -101,6 +112,34 @@ export function renderModuleFiles(
     {
       template: 'where',
       output: path.join('types', `where-${names.kebab}.type.ts`),
+    },
+    {
+      template: 'entity',
+      output: path.join('domain', 'entities', `${names.kebab}.entity.ts`),
+    },
+    {
+      template: 'repository.interface',
+      output: path.join(
+        'domain',
+        'repositories',
+        `${names.kebab}.repository.interface.ts`,
+      ),
+    },
+    {
+      template: 'prisma-repository',
+      output: path.join(
+        'infrastructure',
+        'repositories',
+        `prisma-${names.kebab}.repository.ts`,
+      ),
+    },
+    {
+      template: 'mapper',
+      output: path.join(
+        'infrastructure',
+        'mappers',
+        `${names.kebab}.mapper.ts`,
+      ),
     },
   ];
 

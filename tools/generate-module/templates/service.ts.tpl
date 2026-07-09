@@ -1,18 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
-import { {{pascal}}Repository } from '../repositories/{{kebab}}.repository';
-import { get{{pascal}}Select } from '../types/select-{{kebab}}.type';
+import {
+  I{{pascal}}Repository,
+} from '../../domain/repositories/{{kebab}}.repository.interface';
+import { {{pascal}} } from '../../domain/entities/{{kebab}}.entity';
 
 @Injectable()
 export class {{pascal}}Service {
-  constructor(private readonly {{camel}}Repository: {{pascal}}Repository) {}
+  constructor(
+    @Inject('I{{pascal}}Repository')
+    private readonly {{camel}}Repository: I{{pascal}}Repository,
+  ) {}
 
-  async handleGetById(id: string) {
+  async handleGetById(id: string): Promise<{{pascal}}> {
     return await this.{{camel}}Repository.getThrowById({
       id,
-      select: get{{pascal}}Select('general'),
+      setCache: true,
     });
   }
 
-  // TODO: add more handle* methods — see src/modules/admin/services/admin.service.ts
+  // TODO: add more handle* methods — see src/modules/admin/application/services/admin.service.ts
 }

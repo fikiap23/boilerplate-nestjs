@@ -15,7 +15,8 @@ import { formatResponse } from 'src/common/utils/http.helper';
 import { errorHandler } from 'src/common/utils/validation.helper';
 import { validateUUID } from 'src/common/utils/helper.common';
 
-import { {{pascal}}Service } from '../services/{{kebab}}.service';
+import { {{pascal}}Service } from '../../application/services/{{kebab}}.service';
+import { {{pascal}}ResponseDto } from '../dto/{{kebab}}.dto';
 
 @ApiTags('{{pascal}} Management')
 @Controller('{{route}}')
@@ -32,11 +33,15 @@ export class {{pascal}}Controller {
     try {
       validateUUID(id, '{{kebab}}');
       const result = await this.{{camel}}Service.handleGetById(id);
-      return formatResponse(res, HttpStatus.OK, result);
+      return formatResponse(
+        res,
+        HttpStatus.OK,
+        {{pascal}}ResponseDto.fromDomain(result),
+      );
     } catch (error) {
       return errorHandler(res, error);
     }
   }
 
-  // TODO: add more endpoints — see src/modules/admin/controllers/admin.controller.ts
+  // TODO: add more endpoints — see src/modules/admin/presentation/controllers/admin.controller.ts
 }

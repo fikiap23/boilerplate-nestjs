@@ -1,5 +1,5 @@
 import { Prisma } from 'src/infrastructure/prisma/prisma-client';
-import { Filter{{pascal}}Dto } from '../dto/{{kebab}}.dto';
+import { Filter{{pascal}}Dto } from '../presentation/dto/{{kebab}}.dto';
 
 export function where{{pascal}}GetManyPaginate(_filter: Filter{{pascal}}Dto): {
   where: Prisma.{{pascal}}WhereInput;
