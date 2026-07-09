@@ -4,7 +4,7 @@ import {
   createPrismaRepository,
   PrismaRepositoryInstance,
 } from 'src/infrastructure/prisma/create-prisma.repository';
-import { ProductComposeHelper } from '../helpers/product-compose.helper';
+import { ProductComposePolicy } from '../domain/policies/product-compose.policy';
 
 export type ProductPayload<T extends Prisma.ProductSelect> =
   Prisma.ProductGetPayload<{
@@ -47,7 +47,7 @@ export const ProductRepository = createPrismaRepository<
   toPayload: <T extends Prisma.ProductSelect>(data: unknown) =>
     data as ProductPayload<T>,
   scalarFields: Prisma.ProductScalarFieldEnum,
-  composeHelperToken: forwardRef(() => ProductComposeHelper),
+  composeHelperToken: forwardRef(() => ProductComposePolicy),
 });
 
 export type ProductRepository = PrismaRepositoryInstance<

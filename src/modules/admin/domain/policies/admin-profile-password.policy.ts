@@ -2,10 +2,10 @@ import { Injectable } from '@nestjs/common';
 
 import { CustomError } from 'src/common/exceptions/custom-error';
 import { compareBcrypt, hashBcrypt } from 'src/common/utils/bcrypt.util';
-import { UpdateProfileAdminDto } from '../presentation/dto/admin.dto';
+import { UpdateProfileAdminDto } from '../../presentation/dto/admin.dto';
 
 @Injectable()
-export class AdminProfilePasswordHelper {
+export class AdminProfilePasswordPolicy {
   async resolvePasswordHash(
     dto: UpdateProfileAdminDto,
     currentPasswordHash: string,

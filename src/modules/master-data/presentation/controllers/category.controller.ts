@@ -20,7 +20,6 @@ import { formatResponse } from 'src/common/utils/http.helper';
 import { errorHandler } from 'src/common/utils/validation.helper';
 import { validateUUID } from 'src/common/utils/helper.common';
 
-import { CategoryService } from '../../application/services/category.service';
 import {
   CreateCategoryDto,
   FilterCategoryDto,
@@ -28,10 +27,23 @@ import {
   CategoryResponseDto,
 } from '../dto/category.dto';
 
+// Use Cases
+import { CreateCategoryUseCase } from '../../application/use-cases/create-category.use-case';
+import { GetCategoryByIdUseCase } from '../../application/use-cases/get-category-by-id.use-case';
+import { GetCategoryManyPaginateUseCase } from '../../application/use-cases/get-category-many-paginate.use-case';
+import { UpdateCategoryByIdUseCase } from '../../application/use-cases/update-category-by-id.use-case';
+import { DeleteCategoryByIdUseCase } from '../../application/use-cases/delete-category-by-id.use-case';
+
 @ApiTags('Master Data - Category')
 @Controller('master-data/category')
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) {}
+  constructor(
+    private readonly createCategoryUseCase: CreateCategoryUseCase,
+    private readonly getCategoryByIdUseCase: GetCategoryByIdUseCase,
+    private readonly getCategoryManyPaginateUseCase: GetCategoryManyPaginateUseCase,
+    private readonly updateCategoryByIdUseCase: UpdateCategoryByIdUseCase,
+    private readonly deleteCategoryByIdUseCase: DeleteCategoryByIdUseCase,
+  ) {}
 
   @UseGuards(JwtGuard)
   @Post()
@@ -42,7 +54,7 @@ export class CategoryController {
   })
   async create(@Body() dto: CreateCategoryDto, @Res() res: Response) {
     try {
-      const result = await this.categoryService.handleCreate(dto);
+      const result = await this.createCategoryUseCase.execute(dto);
       return formatResponse(
         res,
         HttpStatus.CREATED,
@@ -64,7 +76,7 @@ export class CategoryController {
     @Res() res: Response,
   ) {
     try {
-      const result = await this.categoryService.handleGetManyPaginate(query);
+      const result = await this.getCategoryManyPaginateUseCase.execute(query);
       const mappedData = result.data.map((item) =>
         CategoryResponseDto.fromDomain(item),
       );
@@ -84,7 +96,7 @@ export class CategoryController {
     try {
       validateUUID(id, 'category');
 
-      const result = await this.categoryService.handleGetById(id);
+      const result = await this.getCategoryByIdUseCase.execute(id);
       return formatResponse(
         res,
         HttpStatus.OK,
@@ -110,7 +122,7 @@ export class CategoryController {
     try {
       validateUUID(id, 'category');
 
-      const result = await this.categoryService.handleUpdateById(id, dto);
+      const result = await this.updateCategoryByIdUseCase.execute(id, dto);
       return formatResponse(
         res,
         HttpStatus.OK,
@@ -131,7 +143,7 @@ export class CategoryController {
     try {
       validateUUID(id, 'category');
 
-      await this.categoryService.handleDeleteById(id);
+      await this.deleteCategoryByIdUseCase.execute(id);
       return formatResponse(res, HttpStatus.OK, null);
     } catch (error) {
       return errorHandler(res, error);

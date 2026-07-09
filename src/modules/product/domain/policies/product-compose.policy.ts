@@ -5,7 +5,7 @@ import { MerchantClient } from 'src/modules/merchant/client/merchant.client';
 import { BaseComposeHelper } from 'src/common/utils/base-compose.helper';
 
 @Injectable()
-export class ProductComposeHelper extends BaseComposeHelper {
+export class ProductComposePolicy extends BaseComposeHelper {
   constructor(
     private readonly categoryClient: CategoryClient,
     private readonly merchantClient: MerchantClient,

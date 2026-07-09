@@ -90,11 +90,11 @@ export function renderModuleFiles(
       ),
     },
     {
-      template: 'service',
+      template: 'get-by-id.use-case',
       output: path.join(
         'application',
-        'services',
-        `${names.kebab}.service.ts`,
+        'use-cases',
+        `get-${names.kebab}-by-id.use-case.ts`,
       ),
     },
     {

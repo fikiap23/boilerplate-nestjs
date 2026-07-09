@@ -4,13 +4,13 @@ import { ApiTags } from '@nestjs/swagger';
 import { formatResponse } from 'src/common/utils/http.helper';
 import { errorHandler } from 'src/common/utils/validation.helper';
 import { SwaggerEndpoint } from 'src/common/decorators/swagger-endpoint.decorator';
-import { AuthService } from '../../application/services/auth.service';
+import { LoginUseCase } from '../../application/use-cases/login.use-case';
 import { LoginDto } from '../dto/login.dto';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly loginUseCase: LoginUseCase) {}
 
   @Post('login')
   @SwaggerEndpoint({
@@ -20,7 +20,7 @@ export class AuthController {
   })
   async login(@Body() dto: LoginDto, @Res() res: Response) {
     try {
-      const result = await this.authService.handleLogin(dto);
+      const result = await this.loginUseCase.execute(dto);
       return formatResponse(res, HttpStatus.OK, result);
     } catch (error) {
       return errorHandler(res, error);

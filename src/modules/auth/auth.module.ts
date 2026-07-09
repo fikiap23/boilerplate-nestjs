@@ -1,7 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { AuthController } from './presentation/controllers/auth.controller';
-import { AuthAuthenticateHelper } from './helpers/auth-authenticate.helper';
-import { AuthService } from './application/services/auth.service';
+import { AuthAuthenticatePolicy } from './domain/policies/auth-authenticate.policy';
+import { LoginUseCase } from './application/use-cases/login.use-case';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from 'src/infrastructure/prisma/prisma.module';
 import { JwtStrategy } from './strategy/jwt.strategy';
@@ -17,14 +17,14 @@ import { AuthClientImpl } from './application/services/auth-client.impl';
   ],
   controllers: [AuthController],
   providers: [
-    AuthService,
-    AuthAuthenticateHelper,
+    LoginUseCase,
+    AuthAuthenticatePolicy,
     JwtStrategy,
     {
       provide: AuthClient,
       useClass: AuthClientImpl,
     },
   ],
-  exports: [AuthClient, AuthService],
+  exports: [AuthClient, LoginUseCase],
 })
 export class AuthModule {}

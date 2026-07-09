@@ -1,15 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { ProductClient } from '../../client/product.client';
 import { ProductClientResponse } from '../../client/product.response';
-import { ProductService } from './product.service';
+import { GetProductByIdUseCase } from '../use-cases/get-product-by-id.use-case';
+import { ReduceProductStockUseCase } from '../use-cases/reduce-product-stock.use-case';
+import { RestoreProductStockUseCase } from '../use-cases/restore-product-stock.use-case';
 
 @Injectable()
 export class ProductClientImpl implements ProductClient {
-  constructor(private readonly productService: ProductService) {}
+  constructor(
+    private readonly getProductByIdUseCase: GetProductByIdUseCase,
+    private readonly reduceProductStockUseCase: ReduceProductStockUseCase,
+    private readonly restoreProductStockUseCase: RestoreProductStockUseCase,
+  ) {}
 
   async getProduct(id: string): Promise<ProductClientResponse | null> {
     try {
-      const product = await this.productService.handleGetById(id);
+      const product = await this.getProductByIdUseCase.execute(id);
       if (!product) return null;
       return {
         id: product.getId(),
@@ -24,10 +30,10 @@ export class ProductClientImpl implements ProductClient {
   }
 
   async reduceStock(id: string, quantity: number): Promise<void> {
-    await this.productService.handleReduceStock(id, quantity);
+    await this.reduceProductStockUseCase.execute(id, quantity);
   }
 
   async restoreStock(id: string, quantity: number): Promise<void> {
-    await this.productService.handleRestoreStock(id, quantity);
+    await this.restoreProductStockUseCase.execute(id, quantity);
   }
 }

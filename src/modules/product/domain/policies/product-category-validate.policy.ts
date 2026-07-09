@@ -4,7 +4,7 @@ import { CustomError } from 'src/common/exceptions/custom-error';
 import { CategoryClient } from 'src/modules/master-data/client/category.client';
 
 @Injectable()
-export class ProductCategoryValidateHelper {
+export class ProductCategoryValidatePolicy {
   constructor(private readonly categoryClient: CategoryClient) {}
 
   async validateCategoryExists(categoryId: string): Promise<void> {

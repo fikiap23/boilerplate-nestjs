@@ -2,11 +2,11 @@ import { Injectable } from '@nestjs/common';
 
 import { CustomError } from 'src/common/exceptions/custom-error';
 import { EAdminRole } from 'src/common/enums/admin.enum';
-import { AdminRepository } from '../repositories/admin.repository';
-import { getAdminSelect } from '../types/select-admin.type';
+import { AdminRepository } from '../../repositories/admin.repository';
+import { getAdminSelect } from '../../types/select-admin.type';
 
 @Injectable()
-export class AdminRoleGuardHelper {
+export class AdminRoleGuardPolicy {
   constructor(private readonly adminRepository: AdminRepository) {}
 
   async assertSuperAdmin(actorId: string): Promise<void> {

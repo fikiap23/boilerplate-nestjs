@@ -4,15 +4,21 @@ import {
   AdminClientResponse,
   AdminAuthResponse,
 } from '../../client/admin.response';
-import { AdminService } from './admin.service';
+import { GetAdminByIdUseCase } from '../use-cases/get-admin-by-id.use-case';
+import { GetAdminByEmailForAuthUseCase } from '../use-cases/get-admin-by-email-for-auth.use-case';
+import { UpdateAdminLastLoginUseCase } from '../use-cases/update-admin-last-login.use-case';
 
 @Injectable()
 export class AdminClientImpl implements AdminClient {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly getAdminByIdUseCase: GetAdminByIdUseCase,
+    private readonly getAdminByEmailForAuthUseCase: GetAdminByEmailForAuthUseCase,
+    private readonly updateAdminLastLoginUseCase: UpdateAdminLastLoginUseCase,
+  ) {}
 
   async getAdmin(id: string): Promise<AdminClientResponse | null> {
     try {
-      const admin = await this.adminService.handleGetById(id);
+      const admin = await this.getAdminByIdUseCase.execute(id);
       if (!admin) return null;
       return {
         id: admin.getId(),
@@ -30,7 +36,7 @@ export class AdminClientImpl implements AdminClient {
     email: string,
   ): Promise<AdminAuthResponse | null> {
     try {
-      const admin = await this.adminService.handleGetByEmailForAuth(email);
+      const admin = await this.getAdminByEmailForAuthUseCase.execute(email);
       if (!admin) return null;
       return {
         id: admin.getId(),
@@ -46,6 +52,6 @@ export class AdminClientImpl implements AdminClient {
   }
 
   async updateLastLogin(id: string): Promise<void> {
-    await this.adminService.handleUpdateLastLogin(id);
+    await this.updateAdminLastLoginUseCase.execute(id);
   }
 }

@@ -90,7 +90,7 @@ Examples:
 function printNextSteps(kebab: string, cacheEnabled: boolean): void {
   console.log('\nNext steps:');
   console.log(`  1. Review samples in src/modules/${kebab}/`);
-  console.log('  2. Copy endpoint/service/DTO patterns from src/modules/admin/');
+  console.log('  2. Copy endpoint/usecase/DTO patterns from src/modules/admin/');
   console.log('  3. Update select presets to match your Prisma model fields');
   if (cacheEnabled) {
     console.log(

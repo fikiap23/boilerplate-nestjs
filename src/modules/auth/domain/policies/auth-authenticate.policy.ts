@@ -3,10 +3,10 @@ import { Injectable } from '@nestjs/common';
 import { CustomError } from 'src/common/exceptions/custom-error';
 import { compareBcrypt } from 'src/common/utils/bcrypt.util';
 import { AdminClient } from 'src/modules/admin/client/admin.client';
-import { LoginDto } from '../presentation/dto/login.dto';
+import { LoginDto } from '../../presentation/dto/login.dto';
 
 @Injectable()
-export class AuthAuthenticateHelper {
+export class AuthAuthenticatePolicy {
   constructor(private readonly adminClient: AdminClient) {}
 
   async authenticate(dto: LoginDto) {

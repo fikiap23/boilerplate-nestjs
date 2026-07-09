@@ -19,7 +19,6 @@ import { CurrentUser, Roles } from 'src/common/decorators';
 import { formatResponse } from 'src/common/utils/http.helper';
 import { errorHandler } from 'src/common/utils/validation.helper';
 
-import { AdminService } from '../../application/services/admin.service';
 import { EAdminRole } from 'src/common/enums/admin.enum';
 import { IPayloadJWT } from 'src/shared/interfaces/auth.interface';
 
@@ -36,10 +35,25 @@ import { ApiTags } from '@nestjs/swagger';
 import { SwaggerEndpoint } from 'src/common/decorators/swagger-endpoint.decorator';
 import { validateUUID } from 'src/common/utils/helper.common';
 
+// Use Cases
+import { CreateAdminUseCase } from '../../application/use-cases/create-admin.use-case';
+import { GetAdminByIdUseCase } from '../../application/use-cases/get-admin-by-id.use-case';
+import { GetAdminManyPaginateUseCase } from '../../application/use-cases/get-admin-many-paginate.use-case';
+import { UpdateAdminByIdUseCase } from '../../application/use-cases/update-admin-by-id.use-case';
+import { UpdateAdminProfileUseCase } from '../../application/use-cases/update-admin-profile.use-case';
+import { DeleteAdminByIdUseCase } from '../../application/use-cases/delete-admin-by-id.use-case';
+
 @ApiTags('Admin Management')
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly createAdminUseCase: CreateAdminUseCase,
+    private readonly getAdminByIdUseCase: GetAdminByIdUseCase,
+    private readonly getAdminManyPaginateUseCase: GetAdminManyPaginateUseCase,
+    private readonly updateAdminByIdUseCase: UpdateAdminByIdUseCase,
+    private readonly updateAdminProfileUseCase: UpdateAdminProfileUseCase,
+    private readonly deleteAdminByIdUseCase: DeleteAdminByIdUseCase,
+  ) {}
 
   @UseGuards(JwtGuard, RoleGuard)
   @Roles(EAdminRole.SUPERADMIN)
@@ -55,7 +69,7 @@ export class AdminController {
     @Res() res: Response,
   ) {
     try {
-      const result = await this.adminService.handleCreate(user.sub, dto);
+      const result = await this.createAdminUseCase.execute(user.sub, dto);
       return formatResponse(
         res,
         HttpStatus.CREATED,
@@ -75,7 +89,7 @@ export class AdminController {
   })
   async getManyPaginate(@Query() query: FilterAdminDto, @Res() res: Response) {
     try {
-      const result = await this.adminService.handleGetManyPaginate(query);
+      const result = await this.getAdminManyPaginateUseCase.execute(query);
       const mappedData = result.data.map((item) =>
         AdminResponseDto.fromDomain(item),
       );
@@ -92,7 +106,7 @@ export class AdminController {
   })
   async getProfile(@CurrentUser() user: IPayloadJWT, @Res() res: Response) {
     try {
-      const result = await this.adminService.handleGetById(user.sub);
+      const result = await this.getAdminByIdUseCase.execute(user.sub);
       return formatResponse(
         res,
         HttpStatus.OK,
@@ -113,7 +127,7 @@ export class AdminController {
     try {
       validateUUID(id, 'admin');
 
-      const result = await this.adminService.handleGetById(id);
+      const result = await this.getAdminByIdUseCase.execute(id);
       return formatResponse(
         res,
         HttpStatus.OK,
@@ -136,7 +150,7 @@ export class AdminController {
     @Res() res: Response,
   ) {
     try {
-      await this.adminService.handleUpdateProfile(user.sub, dto);
+      await this.updateAdminProfileUseCase.execute(user.sub, dto);
       return formatResponse(res, HttpStatus.OK, null);
     } catch (error) {
       return errorHandler(res, error);
@@ -160,7 +174,7 @@ export class AdminController {
     try {
       validateUUID(id, 'admin');
 
-      await this.adminService.handleUpdateById(user.sub, id, dto);
+      await this.updateAdminByIdUseCase.execute(user.sub, id, dto);
       return formatResponse(res, HttpStatus.OK, null);
     } catch (error) {
       return errorHandler(res, error);
@@ -182,7 +196,7 @@ export class AdminController {
     try {
       validateUUID(id, 'admin');
 
-      await this.adminService.handleDeleteById(user.sub, id);
+      await this.deleteAdminByIdUseCase.execute(user.sub, id);
       return formatResponse(res, HttpStatus.OK, null);
     } catch (error) {
       return errorHandler(res, error);

@@ -5,18 +5,18 @@ import { JwtHelper } from 'src/common/utils/jwt.helper';
 import { IPayloadJWT } from 'src/shared/interfaces/auth.interface';
 import { AdminClient } from 'src/modules/admin/client/admin.client';
 import { LoginDto } from '../../presentation/dto/login.dto';
-import { AuthAuthenticateHelper } from '../../helpers/auth-authenticate.helper';
+import { AuthAuthenticatePolicy } from '../../domain/policies/auth-authenticate.policy';
 
 @Injectable()
-export class AuthService {
+export class LoginUseCase {
   constructor(
     private readonly adminClient: AdminClient,
     private readonly jwtHelper: JwtHelper,
-    private readonly authAuthenticateHelper: AuthAuthenticateHelper,
+    private readonly authAuthenticatePolicy: AuthAuthenticatePolicy,
   ) {}
 
-  async handleLogin(dto: LoginDto) {
-    const admin = await this.authAuthenticateHelper.authenticate(dto);
+  async execute(dto: LoginDto) {
+    const admin = await this.authAuthenticatePolicy.authenticate(dto);
 
     if (admin.status !== EAdminStatus.ACTIVE) {
       throw new CustomError({

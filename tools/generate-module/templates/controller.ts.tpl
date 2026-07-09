@@ -15,13 +15,13 @@ import { formatResponse } from 'src/common/utils/http.helper';
 import { errorHandler } from 'src/common/utils/validation.helper';
 import { validateUUID } from 'src/common/utils/helper.common';
 
-import { {{pascal}}Service } from '../../application/services/{{kebab}}.service';
+import { Get{{pascal}}ByIdUseCase } from '../../application/use-cases/get-{{kebab}}-by-id.use-case';
 import { {{pascal}}ResponseDto } from '../dto/{{kebab}}.dto';
 
 @ApiTags('{{pascal}} Management')
 @Controller('{{route}}')
 export class {{pascal}}Controller {
-  constructor(private readonly {{camel}}Service: {{pascal}}Service) {}
+  constructor(private readonly get{{pascal}}ByIdUseCase: Get{{pascal}}ByIdUseCase) {}
 
   @UseGuards(JwtGuard)
   @Get(':id')
@@ -32,7 +32,7 @@ export class {{pascal}}Controller {
   async getById(@Param('id') id: string, @Res() res: Response) {
     try {
       validateUUID(id, '{{kebab}}');
-      const result = await this.{{camel}}Service.handleGetById(id);
+      const result = await this.get{{pascal}}ByIdUseCase.execute(id);
       return formatResponse(
         res,
         HttpStatus.OK,

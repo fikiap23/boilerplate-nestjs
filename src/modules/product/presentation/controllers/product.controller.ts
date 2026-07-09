@@ -20,7 +20,6 @@ import { formatResponse } from 'src/common/utils/http.helper';
 import { errorHandler } from 'src/common/utils/validation.helper';
 import { validateUUID } from 'src/common/utils/helper.common';
 
-import { ProductService } from '../../application/services/product.service';
 import {
   CreateProductDto,
   FilterProductDto,
@@ -28,10 +27,23 @@ import {
   ProductResponseDto,
 } from '../dto/product.dto';
 
+// Use Cases
+import { CreateProductUseCase } from '../../application/use-cases/create-product.use-case';
+import { GetProductByIdUseCase } from '../../application/use-cases/get-product-by-id.use-case';
+import { GetProductManyPaginateUseCase } from '../../application/use-cases/get-product-many-paginate.use-case';
+import { UpdateProductByIdUseCase } from '../../application/use-cases/update-product-by-id.use-case';
+import { DeleteProductByIdUseCase } from '../../application/use-cases/delete-product-by-id.use-case';
+
 @ApiTags('Product')
 @Controller('product')
 export class ProductController {
-  constructor(private readonly productService: ProductService) {}
+  constructor(
+    private readonly createProductUseCase: CreateProductUseCase,
+    private readonly getProductByIdUseCase: GetProductByIdUseCase,
+    private readonly getProductManyPaginateUseCase: GetProductManyPaginateUseCase,
+    private readonly updateProductByIdUseCase: UpdateProductByIdUseCase,
+    private readonly deleteProductByIdUseCase: DeleteProductByIdUseCase,
+  ) {}
 
   @UseGuards(JwtGuard)
   @Post()
@@ -42,7 +54,7 @@ export class ProductController {
   })
   async create(@Body() dto: CreateProductDto, @Res() res: Response) {
     try {
-      const result = await this.productService.handleCreate(dto);
+      const result = await this.createProductUseCase.execute(dto);
       return formatResponse(
         res,
         HttpStatus.CREATED,
@@ -63,7 +75,7 @@ export class ProductController {
     @Res() res: Response,
   ) {
     try {
-      const result = await this.productService.handleGetManyPaginate(query);
+      const result = await this.getProductManyPaginateUseCase.execute(query);
       const mappedData = result.data.map((item) =>
         ProductResponseDto.fromDomain(item),
       );
@@ -82,7 +94,7 @@ export class ProductController {
     try {
       validateUUID(id, 'product');
 
-      const result = await this.productService.handleGetById(id);
+      const result = await this.getProductByIdUseCase.execute(id);
       return formatResponse(
         res,
         HttpStatus.OK,
@@ -108,7 +120,7 @@ export class ProductController {
     try {
       validateUUID(id, 'product');
 
-      const result = await this.productService.handleUpdateById(id, dto);
+      const result = await this.updateProductByIdUseCase.execute(id, dto);
       return formatResponse(
         res,
         HttpStatus.OK,
@@ -129,7 +141,7 @@ export class ProductController {
     try {
       validateUUID(id, 'product');
 
-      await this.productService.handleDeleteById(id);
+      await this.deleteProductByIdUseCase.execute(id);
       return formatResponse(res, HttpStatus.OK, null);
     } catch (error) {
       return errorHandler(res, error);

@@ -20,7 +20,6 @@ import { formatResponse } from 'src/common/utils/http.helper';
 import { errorHandler } from 'src/common/utils/validation.helper';
 import { validateUUID } from 'src/common/utils/helper.common';
 
-import { MerchantService } from '../../application/services/merchant.service';
 import {
   CreateMerchantDto,
   FilterMerchantDto,
@@ -28,10 +27,23 @@ import {
   MerchantResponseDto,
 } from '../dto/merchant.dto';
 
+// Use Cases
+import { CreateMerchantUseCase } from '../../application/use-cases/create-merchant.use-case';
+import { GetMerchantByIdUseCase } from '../../application/use-cases/get-merchant-by-id.use-case';
+import { GetMerchantManyPaginateUseCase } from '../../application/use-cases/get-merchant-many-paginate.use-case';
+import { UpdateMerchantByIdUseCase } from '../../application/use-cases/update-merchant-by-id.use-case';
+import { DeleteMerchantByIdUseCase } from '../../application/use-cases/delete-merchant-by-id.use-case';
+
 @ApiTags('Merchant Management')
 @Controller('merchant')
 export class MerchantController {
-  constructor(private readonly merchantService: MerchantService) {}
+  constructor(
+    private readonly createMerchantUseCase: CreateMerchantUseCase,
+    private readonly getMerchantByIdUseCase: GetMerchantByIdUseCase,
+    private readonly getMerchantManyPaginateUseCase: GetMerchantManyPaginateUseCase,
+    private readonly updateMerchantByIdUseCase: UpdateMerchantByIdUseCase,
+    private readonly deleteMerchantByIdUseCase: DeleteMerchantByIdUseCase,
+  ) {}
 
   @UseGuards(JwtGuard)
   @Post()
@@ -41,7 +53,7 @@ export class MerchantController {
   })
   async create(@Body() dto: CreateMerchantDto, @Res() res: Response) {
     try {
-      const result = await this.merchantService.handleCreate(dto);
+      const result = await this.createMerchantUseCase.execute(dto);
       return formatResponse(
         res,
         HttpStatus.CREATED,
@@ -64,7 +76,7 @@ export class MerchantController {
     @Res() res: Response,
   ) {
     try {
-      const result = await this.merchantService.handleGetManyPaginate(query);
+      const result = await this.getMerchantManyPaginateUseCase.execute(query);
       const mappedData = result.data.map((item) =>
         MerchantResponseDto.fromDomain(item),
       );
@@ -83,7 +95,7 @@ export class MerchantController {
   async getById(@Param('id') id: string, @Res() res: Response) {
     try {
       validateUUID(id, 'merchant');
-      const result = await this.merchantService.handleGetById(id);
+      const result = await this.getMerchantByIdUseCase.execute(id);
       return formatResponse(
         res,
         HttpStatus.OK,
@@ -108,7 +120,7 @@ export class MerchantController {
   ) {
     try {
       validateUUID(id, 'merchant');
-      const result = await this.merchantService.handleUpdateById(id, dto);
+      const result = await this.updateMerchantByIdUseCase.execute(id, dto);
       return formatResponse(
         res,
         HttpStatus.OK,
@@ -128,7 +140,7 @@ export class MerchantController {
   async deleteById(@Param('id') id: string, @Res() res: Response) {
     try {
       validateUUID(id, 'merchant');
-      await this.merchantService.handleDeleteById(id);
+      await this.deleteMerchantByIdUseCase.execute(id);
       return formatResponse(res, HttpStatus.OK, null);
     } catch (error) {
       return errorHandler(res, error);

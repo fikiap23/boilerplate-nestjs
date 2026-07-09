@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
 import { CustomError } from 'src/common/exceptions/custom-error';
-import { CategoryRepository } from '../repositories/category.repository';
-import { getCategorySelect } from '../types/select-category.type';
+import { CategoryRepository } from '../../repositories/category.repository';
+import { getCategorySelect } from '../../types/select-category.type';
 
 @Injectable()
-export class CategorySlugValidateHelper {
+export class CategorySlugValidatePolicy {
   constructor(private readonly categoryRepository: CategoryRepository) {}
 
   async assertSlugAvailable(slug: string, excludeId?: string): Promise<void> {

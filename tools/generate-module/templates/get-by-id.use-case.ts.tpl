@@ -6,18 +6,16 @@ import {
 import { {{pascal}} } from '../../domain/entities/{{kebab}}.entity';
 
 @Injectable()
-export class {{pascal}}Service {
+export class Get{{pascal}}ByIdUseCase {
   constructor(
     @Inject('I{{pascal}}Repository')
     private readonly {{camel}}Repository: I{{pascal}}Repository,
   ) {}
 
-  async handleGetById(id: string): Promise<{{pascal}}> {
+  async execute(id: string): Promise<{{pascal}}> {
     return await this.{{camel}}Repository.getThrowById({
       id,
       setCache: true,
     });
   }
-
-  // TODO: add more handle* methods — see src/modules/admin/application/services/admin.service.ts
 }
