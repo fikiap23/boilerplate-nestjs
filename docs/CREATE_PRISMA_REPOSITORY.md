@@ -36,8 +36,6 @@ export const MyRepository = createPrismaRepository<
       getMany: { ttl: 300 },
       getFirst: { enabled: false }, // bypass cache for getFirst method
     },
-    // Dynamic tag resolver function from entity data
-    getTags: (entity: any) => [`tenant:${entity.tenantId}`], 
   },
 
   // Row-Level Lock Configuration (Optional)
@@ -156,24 +154,31 @@ Let's look at an integrated implementation for a fictitious setup: **Product** b
 model Merchant {
   id        String    @id @default(uuid())
   name      String
+  slug      String    @unique
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
   products  Product[]
 
-  @@map("merchants")
+  @@map("merchant")
 }
 
 model Category {
   id        String    @id @default(uuid())
   name      String
+  slug      String    @unique
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
   products  Product[]
 
-  @@map("categories")
+  @@map("category")
 }
 
 model Product {
   id          String   @id @default(uuid())
   name        String
   price       Decimal  @db.Decimal(12, 2)
-  stock       Int
+  stock       Int      @default(0)
+  description String?
   merchantId  String   @map("merchant_id")
   categoryId  String   @map("category_id")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -182,7 +187,7 @@ model Product {
   merchant    Merchant @relation(fields: [merchantId], references: [id])
   category    Category @relation(fields: [categoryId], references: [id])
 
-  @@map("products")
+  @@map("product")
 }
 ```
 
@@ -237,12 +242,22 @@ export const ProductRepository = createPrismaRepository<
   'product'
 >({
   model: 'product',
+  lock: {
+    tableName: 'product',
+    columns: {
+      categoryId: 'category_id',
+      merchantId: 'merchant_id',
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
+    },
+  },
   cache: {
-    ttl: 60 * 60, // Cache for 1 hour
-    nullTtl: 30,  // Cache empty results for 30 seconds
+    ttl: 60 * 60 * 24, // Cache for 24 hours
+    nullTtl: 60,       // Cache empty results for 60 seconds
     sensitiveFields: [],
     methods: {
-      getManyPaginate: { ttl: 60 * 5 }, // Cache paginated lists for 5 minutes
+      getManyPaginate: { ttl: 60 * 60 * 24 },
+      getMany: { ttl: 60 * 60 * 24 },
     },
   },
   getDelegate: (client) => client.product,
@@ -277,21 +292,14 @@ In a multi-tenant system, clearing *all* list query caches when a new product is
     };
     ```
 
-2.  **Configure Dynamic Tags in the Repository**
-    Add the `getTags` function to the cache options of the repository:
-    ```typescript
-    // Inside ProductRepository createPrismaRepository options:
-    cache: {
-      ttl: 60 * 60,
-      getTags: (product: any) => CacheTags.merchant(product.merchantId),
-    }
-    ```
-    *   **On Read (`getMany`/`getManyPaginate`)**: If the service filters by `where: { merchantId: 'merchant-abc' }`, the repository dynamically resolves the tag `['merchant:merchant-abc']` and indexes the cache entry with it.
-    *   **On Write (`create`/`updateById`/`deleteById`)**: The repository extracts the `merchantId` from the returned database record and automatically clears query caches associated with the tag `['merchant:merchant-abc']` (leaving other merchants' caches untouched).
+2.  **Explicit Caching Parameters**
+    Instead of repository-level configuration, cache tags are resolved on-demand during read/write methods:
+    *   **On Read (`getMany`/`getManyPaginate`)**: Pass `cacheTags` with the tag array or function. If the service filters by `merchantId`, the cache entry is tagged with `['merchant:merchant-abc']`.
+    *   **On Write (`create`/`updateById`/`deleteById`)**: Pass `tags` to specify which tags to invalidate.
 
 3.  **Usage in Service Layer**
     ```typescript
-    // src/modules/product/services/product.service.ts
+    // src/modules/product/application/services/product.service.ts
     import { Injectable, HttpStatus } from '@nestjs/common';
     import { ProductRepository } from '../repositories/product.repository';
     import { CreateProductDto } from '../dto/product.dto';
@@ -301,7 +309,7 @@ In a multi-tenant system, clearing *all* list query caches when a new product is
     export class ProductService {
       constructor(private readonly productRepository: ProductRepository) {}
 
-      // Get products by merchant (automatically cached and tagged per merchant)
+      // Get products by merchant (manually cached and tagged per merchant)
       async handleGetProductsByMerchant(merchantId: string, page = 1, limit = 10) {
         return this.productRepository.getManyPaginate({
           where: { merchantId },
@@ -309,10 +317,11 @@ In a multi-tenant system, clearing *all* list query caches when a new product is
           page,
           limit,
           setCache: true, // ENABLE CACHE
+          cacheTags: CacheTags.merchant(merchantId), // Bind list to merchant-specific tag
         });
       }
 
-      // Create new product (automatically invalidates cache for the associated merchant)
+      // Create new product (invalidates cache for the associated merchant)
       async handleCreateProduct(dto: CreateProductDto) {
         return this.productRepository.create({
           data: dto,
@@ -328,12 +337,14 @@ In a multi-tenant system, clearing *all* list query caches when a new product is
 Handling stock deduction when an order is created. We must lock the product row to prevent race conditions when two transactions attempt to deduct stock concurrently.
 
 1.  **Configure Lock in Repository**
-    The `products` table maps database properties `createdAt` to `created_at` and `updatedAt` to `updated_at`. This mapping is registered under `lock.columns` (all scalar fields with a `@map` decorator in schema.prisma must be mapped here).
+    The `product` table maps database properties `categoryId` to `category_id`, `merchantId` to `merchant_id`, `createdAt` to `created_at`, and `updatedAt` to `updated_at`. This mapping is registered under `lock.columns` (all scalar fields with a `@map` decorator in schema.prisma must be mapped here).
     ```typescript
     // Inside ProductRepository createPrismaRepository options:
     lock: {
-      tableName: 'products', // Real table name from @@map
+      tableName: 'product', // Real table name from @@map
       columns: {
+        categoryId: 'category_id',
+        merchantId: 'merchant_id',
         createdAt: 'created_at',
         updatedAt: 'updated_at',
       },
@@ -343,7 +354,7 @@ Handling stock deduction when an order is created. We must lock the product row 
 2.  **Executing Locks in Service Layer**
     Locks must always run inside a transaction (`tx`).
     ```typescript
-    // src/modules/product/services/product.service.ts
+    // src/modules/product/application/services/product.service.ts
     import { Injectable, HttpStatus } from '@nestjs/common';
     import { PrismaService } from 'src/infrastructure/prisma/prisma.service';
     import { ProductRepository } from '../repositories/product.repository';
@@ -456,7 +467,7 @@ Fetching a product with category and merchant data decoupled (without using data
 3.  **Usage in Service Layer**
     The service layer remains clean using general/detailed select presets. Select splitting and relationship stitching are resolved transparently:
     ```typescript
-    // src/modules/product/services/product.service.ts
+    // src/modules/product/application/services/product.service.ts
     async handleGetProductDetail(id: string) {
       return this.productRepository.getThrowById({
         id,
@@ -478,7 +489,7 @@ Fetching a product with category and merchant data decoupled (without using data
 The caching layer is bypassed inside database transactions. When performing bulk or multi-step modifications within a transaction, cache invalidation must be deferred until the transaction successfully commits using the `afterCommit` callback of `execTx`.
 
 ```typescript
-// src/modules/product/services/product.service.ts
+// src/modules/product/application/services/product.service.ts
 async handleBulkUpdatePrice(merchantId: string, discountRate: number) {
   // Get product IDs to update (bypassing cache)
   const products = await this.productRepository.getMany({

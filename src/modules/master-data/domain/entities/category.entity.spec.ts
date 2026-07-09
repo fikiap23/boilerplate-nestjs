@@ -19,13 +19,21 @@ describe('Category Domain Entity', () => {
 
   describe('setters and validations', () => {
     it('should throw error when name is empty', () => {
-      expect(() => category.setName('')).toThrow('Category name cannot be empty');
-      expect(() => category.setName('   ')).toThrow('Category name cannot be empty');
+      expect(() => category.setName('')).toThrow(
+        'Category name cannot be empty',
+      );
+      expect(() => category.setName('   ')).toThrow(
+        'Category name cannot be empty',
+      );
     });
 
     it('should throw error when slug is empty', () => {
-      expect(() => category.setSlug('')).toThrow('Category slug cannot be empty');
-      expect(() => category.setSlug('   ')).toThrow('Category slug cannot be empty');
+      expect(() => category.setSlug('')).toThrow(
+        'Category slug cannot be empty',
+      );
+      expect(() => category.setSlug('   ')).toThrow(
+        'Category slug cannot be empty',
+      );
     });
 
     it('should update name and slug via updateDetails', () => {

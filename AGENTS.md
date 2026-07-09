@@ -32,13 +32,23 @@ src/
 │   │   └── types/             # PrismaSelectPayloadMap, delegate types
 │   └── redis/                 # RedisService, cache utils
 ├── modules/
-│   └── {feature}/             # Feature modules (admin, auth, ...)
+│   └── {feature}/             # Feature modules (admin, auth, merchant, product, master-data)
 │       ├── {feature}.module.ts
-│       ├── controllers/
-│       ├── services/          # Use case API — handle* only
-│       ├── helpers/           # Supporting logic — *.helper.ts (@Injectable)
-│       ├── repositories/      # createPrismaRepository only
-│       ├── dto/
+│       ├── application/
+│       │   └── services/      # Domain services, handle* methods only
+│       ├── domain/            # Pure domain layer (no NestJS dependencies)
+│       │   ├── entities/      # Domain models
+│       │   ├── repositories/  # Domain repository interfaces (I{Feature}Repository)
+│       │   └── exceptions/    # Feature-specific domain exceptions
+│       ├── presentation/      # API layer
+│       │   ├── controllers/   # Controllers (HTTP logic, guards, response formatting)
+│       │   └── dto/           # Input request validation & response mapping DTOs
+│       ├── infrastructure/    # Concrete persistence implementations
+│       │   ├── repositories/  # Prisma{Feature}Repository implements I{Feature}Repository (wraps low-level repo)
+│       │   └── mappers/       # Domain ↔ persistence mapper utilities
+│       ├── helpers/           # Supporting validation/compose helpers directly under module root
+│       ├── repositories/      # Low-level repository created with createPrismaRepository
+│       │   └── {feature}.repository.ts
 │       └── types/             # Select presets, where builders
 ├── shared/                    # Cross-module DTOs & interfaces
 prisma/
@@ -56,18 +66,20 @@ docs/
 ## Architecture Layers
 
 ```
-Controller  →  Service  →  Repository  →  Prisma / Redis
+Presentation (Controller/DTO)  →  Application (Service)  →  Domain Interface  →  Infrastructure Repository  →  Base Repository (Prisma/Redis)
 ```
 
 | Layer | Responsibility | Rules |
 |-------|---------------|-------|
-| **Controller** | HTTP, guards, Swagger, response formatting | No business logic. No direct Prisma access. |
-| **Service** | Use case orchestration (thin) | **Only** `handle*` methods. No private business methods. Supporting logic → `helpers/`. Throw `CustomError`. Call repository, not Prisma. |
-| **Helper** | Validate, compose, map, guard | `@Injectable` class in `helpers/{feature}-{responsibility}.helper.ts`. May inject repositories. Not a new data-access layer — still goes through repository. |
-| **Repository** | Data access + cache | Created via `createPrismaRepository` factory. All DB reads/writes go through here. |
-| **Infrastructure** | PrismaService, RedisService, config | Global modules (`@Global()`). |
+| **Presentation** | HTTP, guards, Swagger, response formatting | No business logic. No direct Prisma or base repository access. Uses DTOs. |
+| **Application** | Use case orchestration (thin) | **Only** `handle*` methods. No private business methods. Supporting logic goes to `helpers/`. Throws `CustomError`. Interacts with `Domain Interface`, not persistence details. |
+| **Domain** | Core enterprise business rules | Pure TypeScript classes/interfaces defining entities and repository interfaces (`I{Feature}Repository`). |
+| **Infrastructure** | Concrete adapter implementations | `Prisma{Feature}Repository` implements `I{Feature}Repository`, maps entities using `mappers`, and wraps the low-level base `Repository`. |
+| **Helper** | Validate, compose, map, guard | `@Injectable` class in `helpers/{feature}-{responsibility}.helper.ts`. May inject repositories. |
+| **Base Repository** | Generic DB access + cache | Low-level instance created via `createPrismaRepository` factory. |
+| **Infrastructure (Global)** | PrismaService, RedisService, config | Global modules (`@Global()`). |
 
-**Hard rule:** Never call `prisma.model.*` from service/controller. All DB access must go through repositories so cache and invalidation stay consistent.
+**Hard rule:** Never call `prisma.model.*` or low-level `repositories` directly from service/controller. All DB access must go through the repository interface layer (`I{Feature}Repository`) implemented in infrastructure to preserve Clean Architecture boundaries.
 
 ## Import Paths
 
@@ -177,7 +189,6 @@ export const FeatureRepository = createPrismaRepository<
       getManyPaginate: { ttl: 60 * 60 * 24 },
       getMany: { ttl: 60 * 60 * 24 },
     },
-    getTags: (feature: any) => CacheTags.shop(feature.merchantId), // Optional: multi-tenant tag resolution
   },
   getDelegate: (client) => client.feature,
   toPayload: <T extends Prisma.FeatureSelect>(data: unknown) =>
@@ -678,16 +689,16 @@ Build output: `build/compile/` (not `dist/`). ESLint ignores `src/generated/**`.
 | Row lock util | `src/infrastructure/prisma/utils/row-lock.util.ts` |
 | Lock config validation | `src/infrastructure/prisma/utils/validate-lock-config.util.ts` |
 | Admin repository | `src/modules/admin/repositories/admin.repository.ts` |
-| Service | `src/modules/admin/services/admin.service.ts` |
-| Helper (compose nested cache) | `src/modules/product/helpers/product-category-compose.helper.ts` |
+| Service | `src/modules/admin/application/services/admin.service.ts` |
+| Helper (compose nested cache) | `src/modules/product/helpers/product-compose.helper.ts` |
 | Helper (slug validate) | `src/modules/master-data/helpers/category-slug-validate.helper.ts` |
 | Helper (email validate) | `src/modules/admin/helpers/admin-email-validate.helper.ts` |
 | Helper (auth login) | `src/modules/auth/helpers/auth-authenticate.helper.ts` |
-| Controller | `src/modules/admin/controllers/admin.controller.ts` |
+| Controller | `src/modules/admin/presentation/controllers/admin.controller.ts` |
 | Select presets | `src/modules/admin/types/select-admin.type.ts` |
 | Where builder | `src/modules/admin/types/where-admin.type.ts` |
-| DTO | `src/modules/admin/dto/admin.dto.ts` |
-| Auth service | `src/modules/auth/services/auth.service.ts` |
+| DTO | `src/modules/admin/presentation/dto/admin.dto.ts` |
+| Auth service | `src/modules/auth/application/services/auth.service.ts` |
 | Prisma config | `prisma.config.ts` |
 | Cache docs | `docs/CACHE.md` |
 | User docs | `README.md` |

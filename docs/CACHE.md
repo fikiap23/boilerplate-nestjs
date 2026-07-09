@@ -84,18 +84,18 @@ Write methods (`create`, `updateById`, `deleteById`) accept an `invalidate` para
 | `'none'`   | Skip invalidation entirely                         | —                    |
 
 ### Explicit Invalidation Tags
-You can pass an explicit `tags` parameter to any write operation (`create`, `updateById`, `deleteById`) to force invalidation of specific tags, bypassing automatic extraction:
+You can pass an explicit `tags` parameter to any write operation (`create`, `updateById`, `deleteById`) to force invalidation of specific tags:
 ```typescript
 await this.productRepository.create({
   data: { ... },
-  tags: ['shop:merchant-A'], // Explicit array
+  tags: ['merchant:merchant-A'], // Explicit array
 });
 
 // Or using a callback receiving the updated entity result:
 await this.productRepository.updateById({
   id,
   data: { ... },
-  tags: (result) => CacheTags.shop(result.merchantId),
+  tags: (result) => CacheTags.merchant(result.merchantId),
 });
 ```
 
@@ -200,13 +200,33 @@ We support automatic, transparent nested relation composition at the repository 
 ### 1. Repository Configuration (Automated Compose)
 Instead of composing relations in the service layer, configure `scalarFields` and `composeHelperToken` in the repository factory:
 ```typescript
-export const ProductRepository = createPrismaRepository<... >({
+export const ProductRepository = createPrismaRepository<
+  Prisma.ProductSelect,
+  Prisma.ProductCreateInput,
+  Prisma.ProductUpdateInput,
+  Prisma.ProductWhereInput,
+  Prisma.ProductOrderByWithRelationInput,
+  ProductToPayload,
+  'product'
+>({
   model: 'product',
+  lock: {
+    tableName: 'product',
+    columns: {
+      categoryId: 'category_id',
+      merchantId: 'merchant_id',
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
+    },
+  },
   cache: {
     ttl: 60 * 60 * 24,
     nullTtl: 60,
     sensitiveFields: [],
-    getTags: (product: any) => CacheTags.shop(product.merchantId),
+    methods: {
+      getManyPaginate: { ttl: 60 * 60 * 24 },
+      getMany: { ttl: 60 * 60 * 24 },
+    },
   },
   getDelegate: (client) => client.product,
   toPayload: <T extends Prisma.ProductSelect>(data: unknown) =>
@@ -228,23 +248,34 @@ async handleGetById(id: string) {
 }
 ```
 
-### 3. Type-Safe Cache Tagging & Automated Resolution
-For tenant-scoped cache invalidation (like multi-merchant shops):
+### 3. Type-Safe Cache Tagging
+For tenant-scoped cache invalidation (like multi-merchant setups):
 1. **Define central tags** in `src/common/utils/cache-tag.util.ts`:
    ```typescript
    export const CacheTags = {
-     shop: (merchantId: unknown): string[] =>
-       typeof merchantId === 'string' ? [`shop:${merchantId}`] : [],
+     merchant: (merchantId: unknown): string[] =>
+       typeof merchantId === 'string' ? [`merchant:${merchantId}`] : [],
    };
    ```
-2. **Configure `getTags` in the repository cache options**:
+2. **Explicit Read Tagging**:
+   When querying lists via `getManyPaginate` with `setCache: true`, pass a `cacheTags` property to associate the cache entry with specific tags:
    ```typescript
-   getTags: (product: any) => CacheTags.shop(product.merchantId),
+   const result = await this.productRepository.getManyPaginate({
+     where: { merchantId },
+     select: getProductSelect('general'),
+     setCache: true,
+     cacheTags: CacheTags.merchant(merchantId),
+   });
    ```
-3. **Automated Read Resolution**:
-   When querying lists via `getManyPaginate` with `setCache: true`, the repository automatically runs `getTags(where)` on the filter query to tag cached results. No manual `cacheTags` property is required in the service!
-4. **Automated Write Invalidation**:
-   When writing data (create, update, delete), the repository runs `getTags` on the database returned record to dynamically invalidate only that tenant's tagged cache keys in Redis.
+3. **Explicit Write Invalidation**:
+   When writing data (create, update, delete), pass a `tags` property to dynamically invalidate that tenant's cached results:
+   ```typescript
+   await this.productRepository.updateById({
+     id,
+     data,
+     tags: (result) => CacheTags.merchant(result.merchantId),
+   });
+   ```
 
 ## Checklist for New Repository Modules
 

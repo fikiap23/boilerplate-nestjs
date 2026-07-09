@@ -65,19 +65,25 @@ Skip weeks of boilerplate. Clone, configure, and ship features on a consistent a
 
 ## Architecture
 
+This boilerplate follows **DDD / Clean Architecture** principles to separate concerns, keep business logic independent of external services, and ensure cache consistency:
+
 ```
 HTTP Request
     ↓
-Controller   ← guards, validation, Swagger, response formatting
+Presentation Layer (Controllers, DTOs)       ← HTTP, Swagger, validation, response formatting
     ↓
-Service      ← business logic, authorization (handle* methods)
+Application Layer (Services)                  ← Use cases orchestration (handle* methods)
     ↓
-Repository   ← Prisma + Redis cache (createPrismaRepository)
+Domain Layer (Entities, Interfaces)           ← Pure domain models and repository contracts
+    ↓
+Infrastructure Layer                          ← Database mappers & PrismaRepository wrappers
+    ↓
+Base Repository Layer                         ← createPrismaRepository factory (Prisma + Redis cache)
     ↓
 PostgreSQL / Redis
 ```
 
-**Rule:** Services and controllers never call `prisma.*` directly. All database access goes through repositories so caching and invalidation stay correct.
+**Rule:** Services and controllers never call `prisma.*` directly. All database access goes through repository interfaces implemented via the base repository layer to ensure cache and invalidation consistency.
 
 ```
 src/
@@ -86,9 +92,24 @@ src/
 ├── infrastructure/
 │   ├── prisma/          # PrismaService, repository factory, row lock
 │   └── redis/           # RedisService, cache utilities
-├── modules/
-│   ├── auth/            # Login, JWT strategy
-│   └── admin/           # Admin CRUD
+├── modules/             # Feature modules (admin, auth, merchant, product, master-data)
+│   └── {feature}/
+│       ├── {feature}.module.ts
+│       ├── application/
+│       │   └── services/       # Domain services, handle* methods only
+│       ├── domain/             # Entities, repository interfaces, value objects, exceptions
+│       │   ├── entities/
+│       │   ├── repositories/   # I{Feature}Repository contract
+│       │   └── exceptions/
+│       ├── presentation/       # API controllers and DTOs
+│       │   ├── controllers/
+│       │   └── dto/
+│       ├── infrastructure/     # DB repository wrapper (implements I{Feature}Repository) and mappers
+│       │   ├── repositories/   # Prisma{Feature}Repository (wraps the base repository)
+│       │   └── mappers/        # Domain ↔ persistence mappers
+│       ├── repositories/       # Base repository created with `createPrismaRepository`
+│       │   └── {feature}.repository.ts
+│       └── types/              # Select presets, where builders
 └── shared/              # Cross-module DTOs & interfaces
 ```
 
@@ -161,6 +182,8 @@ Use the returned `accessToken` as `Authorization: Bearer <token>` on protected r
 
 ## API overview
 
+### Authentication & Admin Management
+
 | Method   | Endpoint          | Auth                   | Description                                                  |
 | -------- | ----------------- | ---------------------- | ------------------------------------------------------------ |
 | `POST`   | `/auth/login`     | —                      | Login with email & password → `accessToken`                  |
@@ -171,6 +194,36 @@ Use the returned `accessToken` as `Authorization: Bearer <token>` on protected r
 | `POST`   | `/admin`          | JWT + SUPERADMIN       | Create admin                                                 |
 | `PATCH`  | `/admin/:id`      | JWT + SUPERADMIN       | Update admin                                                 |
 | `DELETE` | `/admin/:id`      | JWT + SUPERADMIN       | Delete admin                                                 |
+
+### Merchant Management
+
+| Method   | Endpoint             | Auth | Description                                                  |
+| -------- | -------------------- | ---- | ------------------------------------------------------------ |
+| `POST`   | `/merchant`          | JWT  | Create merchant                                              |
+| `GET`    | `/merchant/paginate` | JWT  | Paginated list (`page`, `limit`, `search`)                   |
+| `GET`    | `/merchant/:id`      | JWT  | Get merchant by ID                                           |
+| `PUT`    | `/merchant/:id`      | JWT  | Update merchant by ID                                        |
+| `DELETE` | `/merchant/:id`      | JWT  | Delete merchant by ID                                        |
+
+### Product Management
+
+| Method   | Endpoint            | Auth | Description                                                  |
+| -------- | ------------------- | ---- | ------------------------------------------------------------ |
+| `POST`   | `/product`          | JWT  | Create product                                               |
+| `GET`    | `/product/paginate` | —    | Paginated list (`page`, `limit`, `search`, `categoryId`, `merchantId`) |
+| `GET`    | `/product/:id`      | —    | Get product by ID                                            |
+| `PATCH`  | `/product/:id`      | JWT  | Update product by ID                                         |
+| `DELETE` | `/product/:id`      | JWT  | Delete product by ID                                         |
+
+### Category (Master Data) Management
+
+| Method   | Endpoint                        | Auth | Description                                                  |
+| -------- | ------------------------------- | ---- | ------------------------------------------------------------ |
+| `POST`   | `/master-data/category`          | JWT  | Create category                                              |
+| `GET`    | `/master-data/category/paginate` | JWT  | Paginated list (`page`, `limit`, `search`)                   |
+| `GET`    | `/master-data/category/:id`      | JWT  | Get category by ID                                           |
+| `PATCH`  | `/master-data/category/:id`      | JWT  | Update category by ID                                        |
+| `DELETE` | `/master-data/category/:id`      | JWT  | Delete category by ID                                         |
 
 Interactive docs: **http://localhost:3000/docs**
 
@@ -271,12 +324,15 @@ yarn gen:module product
 # 3. Copy endpoint/service/DTO patterns from src/modules/admin/, then customize
 ```
 
-The generator creates a **sample scaffold** under `src/modules/{name}/` (not full CRUD):
+The generator creates a **simple sample scaffold** under `src/modules/{name}/` (not full CRUD):
 
 - Wired **repository** (`createPrismaRepository`) + **select presets** (`id` only)
 - Sample **GET /:id** endpoint + `handleGetById` service method
 - Empty **DTO** / **where** with `TODO` pointers to `src/modules/admin/`
 - Auto-registers `{Name}Module` in `app.module.ts`; with `--cache`, also patches `PrismaSelectPayloadMap` and repository cache config
+
+> [!NOTE]
+> For complex modules with rich business models (like the existing `admin`, `product`, `merchant`, and `master-data` modules), you should refactor the generated simple scaffold into the Clean Architecture / DDD layer structure (defining domain entities, mapper functions, repository interfaces, and wrapping base repositories).
 
 If `prisma generate` fails with `EACCES` on `src/generated` (files owned by root after Docker):
 

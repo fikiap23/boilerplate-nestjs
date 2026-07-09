@@ -29,7 +29,9 @@ describe('Admin Domain Entity', () => {
     });
 
     it('should throw error when email is invalid', () => {
-      expect(() => admin.setEmail('invalidemail')).toThrow('Invalid email format');
+      expect(() => admin.setEmail('invalidemail')).toThrow(
+        'Invalid email format',
+      );
     });
 
     it('should update name and email via updateProfile', () => {
