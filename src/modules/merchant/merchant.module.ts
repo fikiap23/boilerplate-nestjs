@@ -15,6 +15,9 @@ import { UpdateMerchantByIdUseCase } from './application/use-cases/update-mercha
 import { DeleteMerchantByIdUseCase } from './application/use-cases/delete-merchant-by-id.use-case';
 import { GetMerchantManyIdsUseCase } from './application/use-cases/get-merchant-many-ids.use-case';
 
+// Policies
+import { MerchantSlugValidatePolicy } from './domain/policies/merchant-slug-validate.policy';
+
 @Module({
   imports: [JwtModule.register({})],
   controllers: [MerchantController],
@@ -26,6 +29,7 @@ import { GetMerchantManyIdsUseCase } from './application/use-cases/get-merchant-
     DeleteMerchantByIdUseCase,
     GetMerchantManyIdsUseCase,
     MerchantRepository,
+    MerchantSlugValidatePolicy,
     {
       provide: MerchantClient,
       useClass: MerchantClientImpl,
@@ -44,6 +48,7 @@ import { GetMerchantManyIdsUseCase } from './application/use-cases/get-merchant-
     UpdateMerchantByIdUseCase,
     DeleteMerchantByIdUseCase,
     GetMerchantManyIdsUseCase,
+    MerchantSlugValidatePolicy,
   ],
 })
 export class MerchantModule {}

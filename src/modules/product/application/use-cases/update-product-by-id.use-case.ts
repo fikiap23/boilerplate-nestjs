@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ProductCategoryValidatePolicy } from '../../domain/policies/product-category-validate.policy';
+import { ProductValidatePolicy } from '../../domain/policies/product-validate.policy';
 import { UpdateProductDto } from '../../presentation/dto/product.dto';
 import { IProductRepository } from '../../domain/repositories/product.repository.interface';
 import { Product } from '../../domain/entities/product.entity';
@@ -10,7 +10,7 @@ export class UpdateProductByIdUseCase {
   constructor(
     @Inject('IProductRepository')
     private readonly productRepository: IProductRepository,
-    private readonly productCategoryValidatePolicy: ProductCategoryValidatePolicy,
+    private readonly productValidatePolicy: ProductValidatePolicy,
   ) {}
 
   async execute(id: string, dto: UpdateProductDto): Promise<Product> {
@@ -19,9 +19,7 @@ export class UpdateProductByIdUseCase {
     });
 
     if (dto.categoryId) {
-      await this.productCategoryValidatePolicy.validateCategoryExists(
-        dto.categoryId,
-      );
+      await this.productValidatePolicy.validateCategoryExists(dto.categoryId);
     }
 
     product.setName(dto.name);

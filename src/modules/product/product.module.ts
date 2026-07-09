@@ -5,7 +5,7 @@ import { MasterDataModule } from 'src/modules/master-data/master-data.module';
 import { MerchantModule } from 'src/modules/merchant/merchant.module';
 import { ProductController } from './presentation/controllers/product.controller';
 import { ProductComposePolicy } from './domain/policies/product-compose.policy';
-import { ProductCategoryValidatePolicy } from './domain/policies/product-category-validate.policy';
+import { ProductValidatePolicy } from './domain/policies/product-validate.policy';
 import { ProductRepository } from './repositories/product.repository';
 import { ProductClient } from './client/product.client';
 import { ProductClientImpl } from './application/services/product-client.impl';
@@ -32,7 +32,7 @@ import { RestoreProductStockUseCase } from './application/use-cases/restore-prod
     ReduceProductStockUseCase,
     RestoreProductStockUseCase,
     ProductRepository,
-    ProductCategoryValidatePolicy,
+    ProductValidatePolicy,
     ProductComposePolicy,
     {
       provide: ProductClient,

@@ -1,27 +1,19 @@
-import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { CustomError } from 'src/common/exceptions/custom-error';
+import { Inject, Injectable } from '@nestjs/common';
 import { IMerchantRepository } from '../../domain/repositories/merchant.repository.interface';
 import { Merchant } from '../../domain/entities/merchant.entity';
 import { CreateMerchantDto } from '../../presentation/dto/merchant.dto';
+import { MerchantSlugValidatePolicy } from '../../domain/policies/merchant-slug-validate.policy';
 
 @Injectable()
 export class CreateMerchantUseCase {
   constructor(
     @Inject('IMerchantRepository')
     private readonly merchantRepository: IMerchantRepository,
+    private readonly merchantSlugValidatePolicy: MerchantSlugValidatePolicy,
   ) {}
 
   async execute(dto: CreateMerchantDto): Promise<Merchant> {
-    const existing = await this.merchantRepository.getFirst({
-      where: { slug: dto.slug },
-    });
-
-    if (existing) {
-      throw new CustomError({
-        statusCode: HttpStatus.CONFLICT,
-        message: 'Merchant slug already exists',
-      });
-    }
+    await this.merchantSlugValidatePolicy.assertSlugAvailable(dto.slug);
 
     const merchant = new Merchant({
       name: dto.name,
