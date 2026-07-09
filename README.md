@@ -72,9 +72,9 @@ HTTP Request
     ↓
 Presentation Layer (Controllers, DTOs)       ← HTTP, Swagger, validation, response formatting
     ↓
-Application Layer (Services)                  ← Use cases orchestration (handle* methods)
+Application Layer (Use Cases)                ← Single-responsibility orchestrators (execute method)
     ↓
-Domain Layer (Entities, Interfaces)           ← Pure domain models and repository contracts
+Domain Layer (Entities, Policies, Interfaces)← Pure domain models, business rules/policies, and repository contracts
     ↓
 Infrastructure Layer                          ← Database mappers & PrismaRepository wrappers
     ↓
@@ -83,7 +83,7 @@ Base Repository Layer                         ← createPrismaRepository factory
 PostgreSQL / Redis
 ```
 
-**Rule:** Services and controllers never call `prisma.*` directly. All database access goes through repository interfaces implemented via the base repository layer to ensure cache and invalidation consistency.
+**Rule:** Use cases, policies, and controllers never call `prisma.*` directly. All database access goes through repository interfaces implemented via the base repository layer to ensure cache and invalidation consistency.
 
 ```
 src/
@@ -96,9 +96,10 @@ src/
 │   └── {feature}/
 │       ├── {feature}.module.ts
 │       ├── application/
-│       │   └── services/       # Domain services, handle* methods only
-│       ├── domain/             # Entities, repository interfaces, value objects, exceptions
+│       │   └── use-cases/      # Single-responsibility use case classes (1 function/class per file)
+│       ├── domain/             # Entities, policies, repository interfaces, value objects, exceptions
 │       │   ├── entities/
+│       │   ├── policies/       # Business rules, validations, and relation compose policies
 │       │   ├── repositories/   # I{Feature}Repository contract
 │       │   └── exceptions/
 │       ├── presentation/       # API controllers and DTOs

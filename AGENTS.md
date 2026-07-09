@@ -35,9 +35,10 @@ src/
 │   └── {feature}/             # Feature modules (admin, auth, merchant, product, master-data)
 │       ├── {feature}.module.ts
 │       ├── application/
-│       │   └── services/      # Domain services, handle* methods only
-│       ├── domain/            # Pure domain layer (no NestJS dependencies)
-│       │   ├── entities/      # Domain models
+│       │   └── use-cases/     # Single-responsibility use case classes (1 function/class per file)
+│       ├── domain/            # Pure domain layer
+│       │   ├── entities/      # Domain models (uses regular setters, no updateDetails helper)
+│       │   ├── policies/      # Business rules, validations, and relation compose policies
 │       │   ├── repositories/  # Domain repository interfaces (I{Feature}Repository)
 │       │   └── exceptions/    # Feature-specific domain exceptions
 │       ├── presentation/      # API layer
@@ -46,7 +47,6 @@ src/
 │       ├── infrastructure/    # Concrete persistence implementations
 │       │   ├── repositories/  # Prisma{Feature}Repository implements I{Feature}Repository (wraps low-level repo)
 │       │   └── mappers/       # Domain ↔ persistence mapper utilities
-│       ├── helpers/           # Supporting validation/compose helpers directly under module root
 │       ├── repositories/      # Low-level repository created with createPrismaRepository
 │       │   └── {feature}.repository.ts
 │       └── types/             # Select presets, where builders
@@ -66,20 +66,20 @@ docs/
 ## Architecture Layers
 
 ```
-Presentation (Controller/DTO)  →  Application (Service)  →  Domain Interface  →  Infrastructure Repository  →  Base Repository (Prisma/Redis)
+Presentation (Controller/DTO)  →  Application (Use Case)  →  Domain Interface  →  Infrastructure Repository  →  Base Repository (Prisma/Redis)
 ```
 
 | Layer | Responsibility | Rules |
 |-------|---------------|-------|
 | **Presentation** | HTTP, guards, Swagger, response formatting | No business logic. No direct Prisma or base repository access. Uses DTOs. |
-| **Application** | Use case orchestration (thin) | **Only** `handle*` methods. No private business methods. Supporting logic goes to `helpers/`. Throws `CustomError`. Interacts with `Domain Interface`, not persistence details. |
-| **Domain** | Core enterprise business rules | Pure TypeScript classes/interfaces defining entities and repository interfaces (`I{Feature}Repository`). |
+| **Application** | Use case orchestration (thin) | **One class per file** containing a single `execute` method. No private business methods. Throws `CustomError`. Interacts with `Domain Interface`, not persistence details. |
+| **Domain** | Core enterprise business rules | Pure TypeScript classes/entities (using regular setters for changes, e.g., `setName()`, no `updateDetails`) and repository interfaces (`I{Feature}Repository`). |
+| **Domain Policy** | Validate, compose, map, guard | `@Injectable` class in `domain/policies/` directory. Checks business rules, handles unique constraint assertions, and resolves nested composition. |
 | **Infrastructure** | Concrete adapter implementations | `Prisma{Feature}Repository` implements `I{Feature}Repository`, maps entities using `mappers`, and wraps the low-level base `Repository`. |
-| **Helper** | Validate, compose, map, guard | `@Injectable` class in `helpers/{feature}-{responsibility}.helper.ts`. May inject repositories. |
 | **Base Repository** | Generic DB access + cache | Low-level instance created via `createPrismaRepository` factory. |
 | **Infrastructure (Global)** | PrismaService, RedisService, config | Global modules (`@Global()`). |
 
-**Hard rule:** Never call `prisma.model.*` or low-level `repositories` directly from service/controller. All DB access must go through the repository interface layer (`I{Feature}Repository`) implemented in infrastructure to preserve Clean Architecture boundaries.
+**Hard rule:** Never call `prisma.model.*` or low-level `repositories` directly from use cases or controllers. All DB access must go through the repository interface layer (`I{Feature}Repository`) implemented in infrastructure to preserve Clean Architecture boundaries.
 
 ## Import Paths
 
@@ -194,7 +194,7 @@ export const FeatureRepository = createPrismaRepository<
   toPayload: <T extends Prisma.FeatureSelect>(data: unknown) =>
     data as FeaturePayload<T>,
   scalarFields: Prisma.FeatureScalarFieldEnum,
-  composeHelperToken: forwardRef(() => FeatureComposeHelper),
+  composeHelperToken: forwardRef(() => FeatureComposePolicy),
 });
 
 export type FeatureRepository = PrismaRepositoryInstance<
@@ -289,20 +289,24 @@ export class FilterFeatureDto extends SearchPaginationDto {
 }
 ```
 
-### 6. Service
+### 6. Use Cases
+
+Create individual files under `application/use-cases/` for each operations. For example, `get-feature-by-id.use-case.ts`:
 
 ```typescript
-// src/modules/{feature}/services/{feature}.service.ts
+// src/modules/{feature}/application/use-cases/get-feature-by-id.use-case.ts
+import { Inject, Injectable } from '@nestjs/common';
+import { getFeatureSelect } from '../../types/select-feature.type';
+import { IFeatureRepository } from '../../domain/repositories/feature.repository.interface';
+
 @Injectable()
-export class FeatureService {
-  constructor(private readonly featureRepository: FeatureRepository) {}
+export class GetFeatureByIdUseCase {
+  constructor(
+    @Inject('IFeatureRepository')
+    private readonly featureRepository: IFeatureRepository,
+  ) {}
 
-  async handleCreate(dto: CreateFeatureDto) {
-    const created = await this.featureRepository.create({ data: { ... } });
-    return created;
-  }
-
-  async handleGetById(id: string) {
+  async execute(id: string) {
     return await this.featureRepository.getThrowById({
       id,
       select: getFeatureSelect('general'),
@@ -314,11 +318,11 @@ export class FeatureService {
 ### 7. Controller
 
 ```typescript
-// src/modules/{feature}/controllers/{feature}.controller.ts
+// src/modules/{feature}/presentation/controllers/{feature}.controller.ts
 @ApiTags('Feature Management')
 @Controller('feature')
 export class FeatureController {
-  constructor(private readonly featureService: FeatureService) {}
+  constructor(private readonly getFeatureByIdUseCase: GetFeatureByIdUseCase) {}
 
   @UseGuards(JwtGuard)
   @Get(':id')
@@ -329,7 +333,7 @@ export class FeatureController {
   async getById(@Param('id') id: string, @Res() res: Response) {
     try {
       validateUUID(id, 'feature');
-      const result = await this.featureService.handleGetById(id);
+      const result = await this.getFeatureByIdUseCase.execute(id);
       return formatResponse(res, HttpStatus.OK, result);
     } catch (error) {
       return errorHandler(res, error);
@@ -344,8 +348,8 @@ export class FeatureController {
 @Module({
   imports: [JwtModule.register({})],
   controllers: [FeatureController],
-  providers: [FeatureService, FeatureRepository],
-  exports: [FeatureService, FeatureRepository],
+  providers: [GetFeatureByIdUseCase, FeatureRepository],
+  exports: [GetFeatureByIdUseCase, FeatureRepository],
 })
 export class FeatureModule {}
 ```
@@ -357,46 +361,44 @@ Register in `src/app.module.ts`.
 - Use `@Res() res: Response` + manual response (not direct decorator return).
 - Every endpoint: `try/catch` → `formatResponse` / `errorHandler`.
 - Swagger: `@SwaggerEndpoint({ summary, body, params, pagination, auth, success })`.
-- UUID param: `validateUUID(id, 'entityName')` before service call.
+- UUID param: `validateUUID(id, 'entityName')` before use case execution.
 - Auth: `@UseGuards(JwtGuard)` or `@UseGuards(JwtGuard, RoleGuard)` + `@Roles(...)`.
 - User from JWT: `@CurrentUser() user: IPayloadJWT` — do not use `@Headers('authorization')`.
 - Paginate response: `formatResponse(res, HttpStatus.OK, result.data, result.meta)`.
 
 ```typescript
 try {
-  const result = await this.service.handleX(...);
+  const result = await this.someUseCase.execute(...);
   return formatResponse(res, HttpStatus.OK, result);
 } catch (error) {
   return errorHandler(res, error);
 }
 ```
 
-## Service Conventions
+## Use Case Conventions
 
-- Method naming: `handleCreate`, `handleGetById`, `handleGetManyPaginate`, `handleUpdateById`, `handleDeleteById`.
-- Business errors: `throw new CustomError({ statusCode: 4xx, message: '...' })`.
-- Password hashing: `hashBcrypt()` / `compareBcrypt()` from `src/common/utils/bcrypt.util`.
+- Single responsibility: **Each use case must reside in its own file** containing exactly one class with one public `execute` method.
+- Class naming: `Create{Feature}UseCase`, `Get{Feature}ByIdUseCase`, `Get{Feature}ManyPaginateUseCase`, `Update{Feature}ByIdUseCase`, `Delete{Feature}ByIdUseCase`.
+- Use Cases must remain clean. Move all rules validation, helper checks, uniqueness validations, or cross-module client validations to policies.
+- Business errors: policy throws `CustomError({ statusCode, message })`.
 - Select presets: always use `getXxxSelect('general')` for API responses.
-- Uniqueness check: `getFirst({ where, select: getXxxSelect('minimal') })` — no `setCache` (default fresh).
-- User-facing reads: `getThrowById` / `getManyPaginate` with `setCache: true` when repo has cache config.
+- Uniqueness check: delegate to a validate policy that calls `getFirst` on repository (without `setCache`).
+- User-facing reads: use `getThrowById` / `getManyPaginate` with `setCache: true` when repo has cache config.
 - Internal auth (needs password): `getXxxSelect('withPassword')` — never cached even with `setCache`.
 - Metadata update: `updateById({ ..., invalidate: 'none' })` for fields like `lastLoginAt`.
 
-## Helper Conventions
+## Policy Conventions
 
 Applies to **every** feature module (`admin`, `auth`, `product`, `master-data`, and new modules).
 
-- Service **only** contains `handle*` methods — one method per endpoint/use case.
-- Other logic (uniqueness validation, relation compose for API response, DTO mapping, pre-delete guards) → `helpers/*.helper.ts`.
-- File naming: `{feature}-{responsibility}.helper.ts` (e.g. `product-compose.helper.ts`).
-- Responsibility suffixes: `validate`, `compose`, `mapper`, `guard`, `loader`.
-- Helper classes: `@Injectable()`, register in module `providers` (export only if used by another module).
-- **Do not** use `.repository.ts` suffix for helpers — `repositories/` is reserved for `createPrismaRepository`.
-- DB access still via repository (helpers must not call `prisma.model.*` directly).
+- All rules, validations, credentials assertions, and relation compositions must be located inside `domain/policies/` folder.
+- File naming: `{feature}-{responsibility}.policy.ts` (e.g. `product-compose.policy.ts`).
+- Policy classes: `@Injectable()`, register in module `providers` (export if used by another module).
+- DB/client access still via repository or clients injected into the policy.
 
 ```typescript
-// services/product.service.ts — handle* only
-async handleGetById(id: string) {
+// use-cases/get-product-by-id.use-case.ts
+async execute(id: string) {
   return this.productRepository.getThrowById({
     id,
     select: getProductSelect('general'),
@@ -404,20 +406,20 @@ async handleGetById(id: string) {
   });
 }
 
-// helpers/product-compose.helper.ts
+// domain/policies/product-compose.policy.ts
 @Injectable()
-export class ProductComposeHelper extends BaseComposeHelper {
+export class ProductComposePolicy extends BaseComposeHelper {
   constructor(
-    private readonly categoryRepository: CategoryRepository,
-    private readonly merchantRepository: MerchantRepository,
+    private readonly categoryClient: CategoryClient,
+    private readonly merchantClient: MerchantClient,
   ) {
     super({
       category: {
-        repository: categoryRepository,
+        loader: (ids) => categoryClient.getCategoriesByIds(ids),
         type: 'one',
       },
       merchant: {
-        repository: merchantRepository,
+        loader: (ids) => merchantClient.getMerchantsByIds(ids),
         type: 'one',
       },
     });
@@ -535,7 +537,7 @@ await this.prisma.execTx(
 
 Extra options: `nowait: true` (fail immediately if row is locked), `skipLocked: true` (skip locked rows). These are mutually exclusive.
 
-PG error `55P03` (lock not available) from `nowait` — handle in service layer (retry or 409).
+PG error `55P03` (lock not available) from `nowait` — handle in controller/use case layer (retry or 409).
 
 ## Cache Rules (Summary)
 
@@ -546,8 +548,8 @@ Full details: [`docs/CACHE.md`](docs/CACHE.md).
 1. **Repository config:** `model` + `cache: { ttl, ... }` — or `yarn gen:module <name> --cache`.
 2. **Register** model in `PrismaSelectPayloadMap` when using cache config.
 3. **Sensitive fields** are never cached — use select presets without password for API responses.
-4. **Auth / uniqueness** — do not pass `setCache` on `getFirst`.
-5. **User-facing reads** — `setCache: true` on `getThrowById` / `getManyPaginate` / compose helpers.
+4. **Auth / uniqueness** — do not pass `setCache` on `getFirst` uniqueness write-path checks.
+5. **User-facing reads** — `setCache: true` on `getThrowById` / `getManyPaginate` / compose policies.
 6. **Metadata-only update** → `invalidate: 'none'`.
 7. **All DB access** through repository (don't bypass Prisma directly).
 8. **Transactions** → cache skipped; manual invalidation via `afterCommit` in `execTx`.
@@ -577,16 +579,16 @@ Redis is injected with `@Optional()` — if Redis is down, the app keeps running
 
 ## Auth Patterns
 
-- Login: `AuthService.handleLogin` → `getFirst` (no `setCache`) → bcrypt compare → JWT.
+- Login: `LoginUseCase.execute` → authenticate via policy → sign token.
 - JWT guard: `JwtGuard` (Passport `'jwt'`).
 - Role guard: `RoleGuard` + `@Roles(EAdminRole.SUPERADMIN)`.
-- JWT strategy validate: `getById({ select: getAdminSelect('minimal') })`.
+- JWT strategy validate: `getById` via `AdminClient` using minimal select.
 - Token sign: `JwtHelper.signToken(payload, '7d')` via `CommonModule`.
 - Circular dep: `forwardRef(() => AdminModule)` between Auth and Admin.
 
 ## Error Handling
 
-- Service: `throw new CustomError({ statusCode, message })`.
+- Policy / Use case: `throw new CustomError({ statusCode, message })`.
 - Controller: `catch (error) { return errorHandler(res, error); }`.
 - `errorHandler` automatically maps `CustomError.statusCode` to HTTP response.
 - Response format: `{ isSuccess, message, data, meta? }`.
@@ -662,15 +664,14 @@ Build output: `build/compile/` (not `dist/`). ESLint ignores `src/generated/**`.
 
 ## Pre-completion Checklist
 
-- [ ] All DB access through repository (not Prisma directly in service)
+- [ ] All DB access through repository (not Prisma directly in use case/policy)
 - [ ] `PrismaSelectPayloadMap` updated if new repository uses cache
 - [ ] Select preset: `general` without sensitive fields, `withPassword` for internal
-- [ ] `setCache: true` on user-facing reads only; not on auth/uniqueness `getFirst`
-- [ ] `invalidate: 'none'` on metadata-only update
+- [ ] `setCache: true` on user-facing reads only; not on auth/uniqueness checks
+- [ ] `invalidate: 'none'` on metadata-only updates
 - [ ] Controller: try/catch + formatResponse/errorHandler + SwaggerEndpoint
-- [ ] Service: `handle*` naming + CustomError for business errors
-- [ ] Service: only `handle*` methods (no private business methods)
-- [ ] Supporting logic in `helpers/*.helper.ts`, registered in module `providers`
+- [ ] Use Case: single operations in its own file, thin `execute` orchestrator
+- [ ] Policies: all rules validation and composings reside under `domain/policies/`
 - [ ] DTO: class-validator + @ApiProperty
 - [ ] Module: register provider + export if used by other modules
 - [ ] `lock.columns` complete for all `@map` fields when using row lock
@@ -689,16 +690,15 @@ Build output: `build/compile/` (not `dist/`). ESLint ignores `src/generated/**`.
 | Row lock util | `src/infrastructure/prisma/utils/row-lock.util.ts` |
 | Lock config validation | `src/infrastructure/prisma/utils/validate-lock-config.util.ts` |
 | Admin repository | `src/modules/admin/repositories/admin.repository.ts` |
-| Service | `src/modules/admin/application/services/admin.service.ts` |
-| Helper (compose nested cache) | `src/modules/product/helpers/product-compose.helper.ts` |
-| Helper (slug validate) | `src/modules/master-data/helpers/category-slug-validate.helper.ts` |
-| Helper (email validate) | `src/modules/admin/helpers/admin-email-validate.helper.ts` |
-| Helper (auth login) | `src/modules/auth/helpers/auth-authenticate.helper.ts` |
+| Use Case (Get by ID) | `src/modules/admin/application/use-cases/get-admin-by-id.use-case.ts` |
+| Policy (Compose nested cache) | `src/modules/product/domain/policies/product-compose.policy.ts` |
+| Policy (Slug validate) | `src/modules/master-data/domain/policies/category-slug-validate.policy.ts` |
+| Policy (Email validate) | `src/modules/admin/domain/policies/admin-email-validate.policy.ts` |
+| Policy (Auth login credentials) | `src/modules/auth/domain/policies/auth-authenticate.policy.ts` |
 | Controller | `src/modules/admin/presentation/controllers/admin.controller.ts` |
 | Select presets | `src/modules/admin/types/select-admin.type.ts` |
 | Where builder | `src/modules/admin/types/where-admin.type.ts` |
 | DTO | `src/modules/admin/presentation/dto/admin.dto.ts` |
-| Auth service | `src/modules/auth/application/services/auth.service.ts` |
 | Prisma config | `prisma.config.ts` |
 | Cache docs | `docs/CACHE.md` |
 | User docs | `README.md` |

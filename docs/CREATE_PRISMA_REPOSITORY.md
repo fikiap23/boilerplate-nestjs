@@ -6,7 +6,7 @@
 3. **Relation Split & Automated Relation Composition** (separating database selects and composing virtual relations across modules using `BaseComposeHelper`).
 4. **Caching Resiliency (Fail-Open)** & **Thundering Herd / Stampede Protection**.
 
-The main goal of this repository layer is to decouple data access logic from the Service layer (`Controller` → `Service` → `Repository` → `Database`/`Redis`) so that the Service remains clean (containing only `handle*` methods) and database access/cache management remains consistent across the application.
+The main goal of this repository layer is to decouple data access logic from the Use Case layer (`Controller` → `Use Case` → `Repository` → `Database`/`Redis`) so that Use Cases remain clean and database access/cache management remains consistent across the application.
 
 ---
 
@@ -297,20 +297,18 @@ In a multi-tenant system, clearing *all* list query caches when a new product is
     *   **On Read (`getMany`/`getManyPaginate`)**: Pass `cacheTags` with the tag array or function. If the service filters by `merchantId`, the cache entry is tagged with `['merchant:merchant-abc']`.
     *   **On Write (`create`/`updateById`/`deleteById`)**: Pass `tags` to specify which tags to invalidate.
 
-3.  **Usage in Service Layer**
+3.  **Usage in Use Case**
     ```typescript
-    // src/modules/product/application/services/product.service.ts
-    import { Injectable, HttpStatus } from '@nestjs/common';
-    import { ProductRepository } from '../repositories/product.repository';
-    import { CreateProductDto } from '../dto/product.dto';
+    // src/modules/product/application/use-cases/get-products-by-merchant.use-case.ts
+    import { Injectable } from '@nestjs/common';
+    import { ProductRepository } from '../../repositories/product.repository';
     import { CacheTags } from 'src/common/utils/cache-tag.util';
 
     @Injectable()
-    export class ProductService {
+    export class GetProductsByMerchantUseCase {
       constructor(private readonly productRepository: ProductRepository) {}
 
-      // Get products by merchant (manually cached and tagged per merchant)
-      async handleGetProductsByMerchant(merchantId: string, page = 1, limit = 10) {
+      async execute(merchantId: string, page = 1, limit = 10) {
         return this.productRepository.getManyPaginate({
           where: { merchantId },
           select: { id: true, name: true, price: true },
@@ -318,14 +316,6 @@ In a multi-tenant system, clearing *all* list query caches when a new product is
           limit,
           setCache: true, // ENABLE CACHE
           cacheTags: CacheTags.merchant(merchantId), // Bind list to merchant-specific tag
-        });
-      }
-
-      // Create new product (invalidates cache for the associated merchant)
-      async handleCreateProduct(dto: CreateProductDto) {
-        return this.productRepository.create({
-          data: dto,
-          tags: (result) => CacheTags.merchant(result.merchantId), 
         });
       }
     }
@@ -351,23 +341,23 @@ Handling stock deduction when an order is created. We must lock the product row 
     }
     ```
 
-2.  **Executing Locks in Service Layer**
+2.  **Executing Locks in Use Case**
     Locks must always run inside a transaction (`tx`).
     ```typescript
-    // src/modules/product/application/services/product.service.ts
+    // src/modules/product/application/use-cases/deduct-product-stock.use-case.ts
     import { Injectable, HttpStatus } from '@nestjs/common';
     import { PrismaService } from 'src/infrastructure/prisma/prisma.service';
-    import { ProductRepository } from '../repositories/product.repository';
+    import { ProductRepository } from '../../repositories/product.repository';
     import { CustomError } from 'src/common/exceptions/custom-error';
 
     @Injectable()
-    export class ProductService {
+    export class DeductProductStockUseCase {
       constructor(
         private readonly prisma: PrismaService,
         private readonly productRepository: ProductRepository,
       ) {}
 
-      async handleDeductStock(productId: string, quantity: number) {
+      async execute(productId: string, quantity: number) {
         return this.prisma.execTx(
           // 1. Run inside database transaction (tx)
           async (tx) => {
@@ -411,32 +401,30 @@ Handling stock deduction when an order is created. We must lock the product row 
 ### Use Case 4: Virtual Relation Composition (`BaseComposeHelper`)
 Fetching a product with category and merchant data decoupled (without using database `join` directly).
 
-1.  **Create Compose Helper**
-    Create an `@Injectable` helper class to stitch relations:
+1.  **Create Compose Policy**
+    Create an `@Injectable` policy class to stitch relations:
     ```typescript
-    // src/modules/product/helpers/product-compose.helper.ts
+    // src/modules/product/domain/policies/product-compose.policy.ts
     import { Injectable } from '@nestjs/common';
     import { BaseComposeHelper } from 'src/common/utils/base-compose.helper';
-    import { CategoryRepository } from 'src/modules/master-data/repositories/category.repository';
-    import { MerchantRepository } from 'src/modules/merchant/repositories/merchant.repository';
+    import { CategoryClient } from 'src/modules/master-data/client/category.client';
+    import { MerchantClient } from 'src/modules/merchant/client/merchant.client';
 
     @Injectable()
-    export class ProductComposeHelper extends BaseComposeHelper {
+    export class ProductComposePolicy extends BaseComposeHelper {
       constructor(
-        private readonly categoryRepository: CategoryRepository,
-        private readonly merchantRepository: MerchantRepository,
+        private readonly categoryClient: CategoryClient,
+        private readonly merchantClient: MerchantClient,
       ) {
-        // Register virtual relations and their respective repositories
+        // Register virtual relations and their respective loader methods
         super({
           category: {
-            repository: categoryRepository,
+            loader: (ids) => categoryClient.getCategoriesByIds(ids),
             type: 'one', // one category per product
-            foreignKey: 'categoryId',
           },
           merchant: {
-            repository: merchantRepository,
+            loader: (ids) => merchantClient.getMerchantsByIds(ids),
             type: 'one', // one merchant per product
-            foreignKey: 'merchantId',
           },
         });
       }
@@ -446,29 +434,26 @@ Fetching a product with category and merchant data decoupled (without using data
 2.  **Register in Module Providers**
     ```typescript
     // src/modules/product/product.module.ts
-    import { Module, forwardRef } from '@nestjs/common';
-    import { ProductService } from './services/product.service';
+    import { Module } from '@nestjs/common';
+    import { GetProductByIdUseCase } from './application/use-cases/get-product-by-id.use-case';
     import { ProductRepository } from './repositories/product.repository';
-    import { ProductComposeHelper } from './helpers/product-compose.helper';
+    import { ProductComposePolicy } from './domain/policies/product-compose.policy';
     import { MasterDataModule } from '../master-data/master-data.module';
     import { MerchantModule } from '../merchant/merchant.module';
 
     @Module({
-      imports: [
-        forwardRef(() => MasterDataModule),
-        forwardRef(() => MerchantModule),
-      ],
-      providers: [ProductService, ProductRepository, ProductComposeHelper],
-      exports: [ProductService, ProductRepository],
+      imports: [MasterDataModule, MerchantModule],
+      providers: [GetProductByIdUseCase, ProductRepository, ProductComposePolicy],
+      exports: [GetProductByIdUseCase, ProductRepository],
     })
     export class ProductModule {}
     ```
 
-3.  **Usage in Service Layer**
-    The service layer remains clean using general/detailed select presets. Select splitting and relationship stitching are resolved transparently:
+3.  **Usage in Use Case**
+    The use case remains clean using general/detailed select presets. Select splitting and relationship stitching are resolved transparently:
     ```typescript
-    // src/modules/product/application/services/product.service.ts
-    async handleGetProductDetail(id: string) {
+    // src/modules/product/application/use-cases/get-product-by-id.use-case.ts
+    async execute(id: string) {
       return this.productRepository.getThrowById({
         id,
         select: {
@@ -489,38 +474,46 @@ Fetching a product with category and merchant data decoupled (without using data
 The caching layer is bypassed inside database transactions. When performing bulk or multi-step modifications within a transaction, cache invalidation must be deferred until the transaction successfully commits using the `afterCommit` callback of `execTx`.
 
 ```typescript
-// src/modules/product/application/services/product.service.ts
-async handleBulkUpdatePrice(merchantId: string, discountRate: number) {
-  // Get product IDs to update (bypassing cache)
-  const products = await this.productRepository.getMany({
-    where: { merchantId },
-    select: { id: true },
-  });
+// src/modules/product/application/use-cases/bulk-update-price.use-case.ts
+@Injectable()
+export class BulkUpdatePriceUseCase {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly productRepository: ProductRepository,
+  ) {}
 
-  const productIds = products.map((p) => p.id);
+  async execute(merchantId: string, discountRate: number) {
+    // Get product IDs to update (bypassing cache)
+    const products = await this.productRepository.getMany({
+      where: { merchantId },
+      select: { id: true },
+    });
 
-  return this.prisma.execTx(
-    async (tx) => {
-      for (const id of productIds) {
-        await this.productRepository.updateById({
-          tx,
-          id,
-          data: { price: { multiply: discountRate } },
-          invalidate: 'none', // Skip auto-invalidation to avoid Redis updates inside tx
-          tags: null,
-        });
+    const productIds = products.map((p) => p.id);
+
+    return this.prisma.execTx(
+      async (tx) => {
+        for (const id of productIds) {
+          await this.productRepository.updateById({
+            tx,
+            id,
+            data: { price: { multiply: discountRate } },
+            invalidate: 'none', // Skip auto-invalidation to avoid Redis updates inside tx
+            tags: null,
+          });
+        }
+      },
+      // afterCommit runs only after the transaction is successfully committed to PG
+      async () => {
+        // Invalidate individual entity caches in parallel in Redis
+        // Also clear list query caches associated with this merchant in a type-safe way
+        await Promise.all([
+          ...productIds.map((id) => this.productRepository.invalidateCache({ id })),
+          this.productRepository.invalidateCache({ tags: CacheTags.merchant(merchantId) }),
+        ]);
       }
-    },
-    // afterCommit runs only after the transaction is successfully committed to PG
-    async () => {
-      // Invalidate individual entity caches in parallel in Redis
-      // Also clear list query caches associated with this merchant in a type-safe way
-      await Promise.all([
-        ...productIds.map((id) => this.productRepository.invalidateCache({ id })),
-        this.productRepository.invalidateCache({ tags: CacheTags.merchant(merchantId) }),
-      ]);
-    }
-  );
+    );
+  }
 }
 ```
 
@@ -532,4 +525,4 @@ async handleBulkUpdatePrice(merchantId: string, discountRate: number) {
 2.  **Metadata-Only Updates**: Use `invalidate: 'none'` to update high-frequency columns that do not affect the public API response layout (e.g., `lastLoginAt`, `readCount`, `lastUpdatedAt`).
 3.  **Register in `PrismaSelectPayloadMap`**: All new repositories configured with cache must be registered in [prisma-select-payload.type.ts](file:///home/fikiap23/sasana/kalventis/boilerplate-nest/src/infrastructure/prisma/types/prisma-select-payload.type.ts) for compilation success.
 4.  **Row Lock Config**: Ensure all physical database column names mapped with `@map(...)` in `schema.prisma` are declared in the repository `lock.columns` configuration to avoid startup validation errors.
-5.  **Use CLI Generator (Highly Recommended)**: To speed up development, use `yarn gen:module <module_name> --cache` to automatically scaffold the module, controller, service, helper, dto, select presets, payload map registration, and a cache-configured repository.
+5.  **Use CLI Generator (Highly Recommended)**: To speed up development, use `yarn gen:module <module_name> --cache` to automatically scaffold the module, controller, use cases, policies, dto, select presets, payload map registration, and a cache-configured repository.

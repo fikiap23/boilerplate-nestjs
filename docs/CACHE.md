@@ -5,7 +5,7 @@ This project uses Redis as a cache-aside layer integrated into the generic `crea
 ## Architecture
 
 ```
-Service → Repository → [Redis cache] → Prisma → PostgreSQL
+Use Case / Policy → Repository → [Redis cache] → Prisma → PostgreSQL
 ```
 
 - **Read opt-in:** pass `setCache: true` on `getById`, `getThrowById`, `getFirst`, `getMany`, or `getManyPaginate`.
@@ -55,8 +55,8 @@ Fields listed in `sensitiveFields` (default: `['password']`) are **never cached*
 
 Only on **user-facing read paths** that benefit from caching:
 
-- `handleGetById` / `handleGetManyPaginate` in services
-- Compose helpers loading related entities for API responses
+- `Get{Feature}ByIdUseCase` / `Get{Feature}ManyPaginateUseCase` execution
+- Compose policies loading related entities for API responses
 
 **Do not** pass `setCache: true` on:
 
@@ -198,7 +198,7 @@ Prefer `make cache-keys` over `KEYS` in production-like environments (`KEYS` blo
 We support automatic, transparent nested relation composition at the repository layer.
 
 ### 1. Repository Configuration (Automated Compose)
-Instead of composing relations in the service layer, configure `scalarFields` and `composeHelperToken` in the repository factory:
+Instead of composing relations in the use case, configure `scalarFields` and `composeHelperToken` in the repository factory:
 ```typescript
 export const ProductRepository = createPrismaRepository<
   Prisma.ProductSelect,
@@ -232,14 +232,14 @@ export const ProductRepository = createPrismaRepository<
   toPayload: <T extends Prisma.ProductSelect>(data: unknown) =>
     data as ProductPayload<T>,
   scalarFields: Prisma.ProductScalarFieldEnum,
-  composeHelperToken: forwardRef(() => ProductComposeHelper),
+  composeHelperToken: forwardRef(() => ProductComposePolicy),
 });
 ```
 
-### 2. Service Layer remains Clean
-Since the repository handles select splitting and helper composition under the hood, the service layer simply calls standard repository CRUD methods without boilerplate:
+### 2. Use Case Layer remains Clean
+Since the repository handles select splitting and policy composition under the hood, the use case simply calls standard repository CRUD methods without boilerplate:
 ```typescript
-async handleGetById(id: string) {
+async execute(id: string) {
   return this.productRepository.getThrowById({
     id,
     select: getProductSelect('general'),
@@ -282,8 +282,8 @@ For tenant-scoped cache invalidation (like multi-merchant setups):
 1. Run `yarn gen:module <name> --cache` or add `model` + `cache: { ttl, ... }` to `createPrismaRepository`.
 2. Register the model in `PrismaSelectPayloadMap` (generator does this with `--cache`).
 3. Create select presets — `general` without sensitive fields; `withPassword` for internal auth.
-4. Add `setCache: true` only on user-facing reads in services.
+4. Add `setCache: true` only on user-facing reads in use cases/policies.
 5. Use `invalidate: 'none'` for metadata-only updates.
 6. In transactions: `afterCommit` → `invalidateCache`.
 7. Never use `setCache: true` on auth/uniqueness `getFirst`.
-8. Avoid raw `prisma.model.*` in services — bypasses repository invalidation.
+8. Avoid raw `prisma.model.*` in use cases/policies — bypasses repository invalidation.
