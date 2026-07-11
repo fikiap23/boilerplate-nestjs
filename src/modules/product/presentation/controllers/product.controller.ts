@@ -14,7 +14,9 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
-import { JwtGuard } from 'src/common/guards';
+import { JwtGuard, RoleGuard } from 'src/common/guards';
+import { Roles } from 'src/common/decorators';
+import { MANAGEMENT_WRITE_ROLES } from 'src/common/constants/role.constants';
 import { SwaggerEndpoint } from 'src/common/decorators/swagger-endpoint.decorator';
 import { formatResponse } from 'src/common/utils/http.helper';
 import { errorHandler } from 'src/common/utils/validation.helper';
@@ -45,7 +47,8 @@ export class ProductController {
     private readonly deleteProductByIdUseCase: DeleteProductByIdUseCase,
   ) {}
 
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(...MANAGEMENT_WRITE_ROLES)
   @Post()
   @SwaggerEndpoint({
     summary: 'Create product',
@@ -105,7 +108,8 @@ export class ProductController {
     }
   }
 
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(...MANAGEMENT_WRITE_ROLES)
   @Patch(':id')
   @SwaggerEndpoint({
     summary: 'Update product by ID',
@@ -131,7 +135,8 @@ export class ProductController {
     }
   }
 
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(...MANAGEMENT_WRITE_ROLES)
   @Delete(':id')
   @SwaggerEndpoint({
     summary: 'Delete product by ID',

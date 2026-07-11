@@ -15,4 +15,4 @@ if [ "$RUN_SEED" = "true" ] || [ "$RUN_SEED" = "1" ]; then
 fi
 
 echo "Start Server Prod"
-node dist/src/main.js
+node build/compile/src/main.js

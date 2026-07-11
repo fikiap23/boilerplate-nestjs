@@ -21,6 +21,8 @@ services:
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_PREFIX: ${REDIS_PREFIX:-bn}
       REDIS_DEFAULT_TTL: ${REDIS_DEFAULT_TTL:-300}
+      ENABLE_SWAGGER: ${ENABLE_SWAGGER:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
     depends_on:
       boilerplate-nest-database-postgres-production:
         condition: service_healthy
@@ -35,7 +37,7 @@ services:
           'CMD',
           'node',
           '-e',
-          "require('http').get('http://127.0.0.1:3000/', (r)=>process.exit(r.statusCode===200?0:1)).on('error', ()=>process.exit(1))",
+          "require('http').get('http://127.0.0.1:3000/health', (r)=>process.exit(r.statusCode===200?0:1)).on('error', ()=>process.exit(1))",
         ]
       interval: 30s
       timeout: 5s

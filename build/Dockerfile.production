@@ -45,9 +45,7 @@ WORKDIR /usr/src/app
 COPY --from=production-deps /usr/src/app/node_modules /usr/src/app/node_modules
 COPY --from=build /usr/src/app/node_modules/.prisma /usr/src/app/node_modules/.prisma
 
-COPY --from=build /usr/src/app/dist /usr/src/app/dist
-COPY --from=build /usr/src/app/utils /usr/src/app/utils
-COPY --from=build /usr/src/app/helpers /usr/src/app/helpers
+COPY --from=build /usr/src/app/build/compile /usr/src/app/build/compile
 COPY --from=build /usr/src/app/package.json /usr/src/app/package.json
 COPY --from=build /usr/src/app/prisma /usr/src/app/prisma
 COPY --from=build /usr/src/app/build/entrypoint.production.sh /usr/src/app/build/entrypoint.production.sh

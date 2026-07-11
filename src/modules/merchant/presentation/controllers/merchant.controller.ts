@@ -14,7 +14,12 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
-import { JwtGuard } from 'src/common/guards';
+import { JwtGuard, RoleGuard } from 'src/common/guards';
+import { Roles } from 'src/common/decorators';
+import {
+  MANAGEMENT_READ_ROLES,
+  MANAGEMENT_WRITE_ROLES,
+} from 'src/common/constants/role.constants';
 import { SwaggerEndpoint } from 'src/common/decorators/swagger-endpoint.decorator';
 import { formatResponse } from 'src/common/utils/http.helper';
 import { errorHandler } from 'src/common/utils/validation.helper';
@@ -45,7 +50,8 @@ export class MerchantController {
     private readonly deleteMerchantByIdUseCase: DeleteMerchantByIdUseCase,
   ) {}
 
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(...MANAGEMENT_WRITE_ROLES)
   @Post()
   @SwaggerEndpoint({
     summary: 'Create merchant',
@@ -64,7 +70,8 @@ export class MerchantController {
     }
   }
 
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(...MANAGEMENT_READ_ROLES)
   @Get('paginate')
   @SwaggerEndpoint({
     summary: 'Get merchant list with pagination',
@@ -86,7 +93,8 @@ export class MerchantController {
     }
   }
 
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(...MANAGEMENT_READ_ROLES)
   @Get(':id')
   @SwaggerEndpoint({
     summary: 'Get merchant by ID',
@@ -106,7 +114,8 @@ export class MerchantController {
     }
   }
 
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(...MANAGEMENT_WRITE_ROLES)
   @Put(':id')
   @SwaggerEndpoint({
     summary: 'Update merchant by ID',
@@ -131,7 +140,8 @@ export class MerchantController {
     }
   }
 
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(...MANAGEMENT_WRITE_ROLES)
   @Delete(':id')
   @SwaggerEndpoint({
     summary: 'Delete merchant by ID',

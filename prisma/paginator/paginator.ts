@@ -1,4 +1,5 @@
 import { IPaginatedResult } from '../interfaces/paginated-result';
+import { MAX_PAGE_SIZE } from 'src/shared/dto/pagination.dto';
 
 export type PaginateOptions = {
   page?: number | string;
@@ -15,7 +16,9 @@ export const paginator = (
 ): PaginateFunction => {
   return async (model, args: any = { where: undefined }, options) => {
     const page = Number(options?.page || defaultOptions?.page) || 1;
-    const perPage = Number(options?.perPage || defaultOptions?.perPage) || 10;
+    const rawPerPage =
+      Number(options?.perPage || defaultOptions?.perPage) || 10;
+    const perPage = Math.min(Math.max(rawPerPage, 1), MAX_PAGE_SIZE);
 
     const skip = page > 0 ? perPage * (page - 1) : 0;
     const [total, data] = await Promise.all([

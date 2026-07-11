@@ -14,7 +14,12 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
-import { JwtGuard } from 'src/common/guards';
+import { JwtGuard, RoleGuard } from 'src/common/guards';
+import { Roles } from 'src/common/decorators';
+import {
+  MANAGEMENT_READ_ROLES,
+  MANAGEMENT_WRITE_ROLES,
+} from 'src/common/constants/role.constants';
 import { SwaggerEndpoint } from 'src/common/decorators/swagger-endpoint.decorator';
 import { formatResponse } from 'src/common/utils/http.helper';
 import { errorHandler } from 'src/common/utils/validation.helper';
@@ -45,7 +50,8 @@ export class CategoryController {
     private readonly deleteCategoryByIdUseCase: DeleteCategoryByIdUseCase,
   ) {}
 
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(...MANAGEMENT_WRITE_ROLES)
   @Post()
   @SwaggerEndpoint({
     summary: 'Create category',
@@ -65,7 +71,8 @@ export class CategoryController {
     }
   }
 
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(...MANAGEMENT_READ_ROLES)
   @Get('paginate')
   @SwaggerEndpoint({
     summary: 'Get category list with pagination',
@@ -86,7 +93,8 @@ export class CategoryController {
     }
   }
 
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(...MANAGEMENT_READ_ROLES)
   @Get(':id')
   @SwaggerEndpoint({
     summary: 'Get category by ID',
@@ -107,7 +115,8 @@ export class CategoryController {
     }
   }
 
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(...MANAGEMENT_WRITE_ROLES)
   @Patch(':id')
   @SwaggerEndpoint({
     summary: 'Update category by ID',
@@ -133,7 +142,8 @@ export class CategoryController {
     }
   }
 
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(...MANAGEMENT_WRITE_ROLES)
   @Delete(':id')
   @SwaggerEndpoint({
     summary: 'Delete category by ID',

@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { Body, Controller, HttpStatus, Post, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { formatResponse } from 'src/common/utils/http.helper';
 import { errorHandler } from 'src/common/utils/validation.helper';
 import { SwaggerEndpoint } from 'src/common/decorators/swagger-endpoint.decorator';
@@ -12,6 +13,7 @@ import { LoginDto } from '../dto/login.dto';
 export class AuthController {
   constructor(private readonly loginUseCase: LoginUseCase) {}
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @SwaggerEndpoint({
     summary: 'Login admin and return JWT token',

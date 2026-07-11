@@ -1,5 +1,6 @@
 import * as _ from 'lodash';
 import { Response } from 'express';
+import { CustomError } from 'src/common/exceptions/custom-error';
 import { formatErrorResponse } from './http.helper';
 import { Prisma } from 'src/infrastructure/prisma/prisma-client';
 
@@ -60,6 +61,11 @@ export const errorHandler = (response: Response, error: any) => {
     const cleanMessage = formatPrismaErrorMessage(error);
 
     return formatErrorResponse(response, cleanMessage, statusCode);
+  }
+
+  if (error instanceof CustomError) {
+    const { statusCode, message } = error;
+    return formatErrorResponse(response, message, statusCode);
   }
 
   if (
