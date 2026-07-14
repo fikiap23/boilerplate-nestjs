@@ -63,7 +63,7 @@ Controller  →  Service  →  Repository  →  Prisma / Redis
 |-------|---------------|-------|
 | **Controller** | HTTP, guards, Swagger, response formatting | No business logic. No direct Prisma access. |
 | **Service** | Use case orchestration (thin) | **Only** `handle*` methods. No private business methods. Supporting logic → `helpers/`. Throw `CustomError`. Call repository, not Prisma. |
-| **Helper** | Validate, compose, map, guard | `@Injectable` class in `helpers/{feature}-{responsibility}.helper.ts`. May inject repositories. Not a new data-access layer — still goes through repository. |
+| **Helper** | Validate, map, guard | `@Injectable` class in `helpers/{feature}-{responsibility}.helper.ts`. May inject repositories. Not a new data-access layer — still goes through repository. Relation compose is handled by `AutoComposeHelper` (no per-feature compose helper). |
 | **Repository** | Data access + cache | Created via `createPrismaRepository` factory. All DB reads/writes go through here. |
 | **Infrastructure** | PrismaService, RedisService, config | Global modules (`@Global()`). |
 
@@ -182,8 +182,7 @@ export const FeatureRepository = createPrismaRepository<
   getDelegate: (client) => client.feature,
   toPayload: <T extends Prisma.FeatureSelect>(data: unknown) =>
     data as FeaturePayload<T>,
-  scalarFields: Prisma.FeatureScalarFieldEnum,
-  composeHelperToken: forwardRef(() => FeatureComposeHelper),
+  scalarFields: Prisma.FeatureScalarFieldEnum, // enables auto-compose of relations in select
 });
 
 export type FeatureRepository = PrismaRepositoryInstance<
@@ -376,42 +375,31 @@ try {
 Applies to **every** feature module (`admin`, `auth`, `product`, `master-data`, and new modules).
 
 - Service **only** contains `handle*` methods — one method per endpoint/use case.
-- Other logic (uniqueness validation, relation compose for API response, DTO mapping, pre-delete guards) → `helpers/*.helper.ts`.
-- File naming: `{feature}-{responsibility}.helper.ts` (e.g. `product-compose.helper.ts`).
-- Responsibility suffixes: `validate`, `compose`, `mapper`, `guard`, `loader`.
+- Other logic (uniqueness validation, DTO mapping, pre-delete guards) → `helpers/*.helper.ts`.
+- File naming: `{feature}-{responsibility}.helper.ts` (e.g. `product-category-validate.helper.ts`).
+- Responsibility suffixes: `validate`, `mapper`, `guard`, `loader`.
 - Helper classes: `@Injectable()`, register in module `providers` (export only if used by another module).
 - **Do not** use `.repository.ts` suffix for helpers — `repositories/` is reserved for `createPrismaRepository`.
 - DB access still via repository (helpers must not call `prisma.model.*` directly).
+- **Relation compose is automatic** — put relations in `select` presets; with `model` + `scalarFields`, `AutoComposeHelper` resolves nested relations via `RepositoryRegistry` (relation field name must match registered `model`, e.g. `category`). No per-feature compose helper.
 
 ```typescript
 // services/product.service.ts — handle* only
 async handleGetById(id: string) {
   return this.productRepository.getThrowById({
     id,
-    select: getProductSelect('general'),
+    select: getProductSelect('general'), // may include category/merchant relations
     setCache: true,
   });
 }
 
-// helpers/product-compose.helper.ts
-@Injectable()
-export class ProductComposeHelper extends BaseComposeHelper {
-  constructor(
-    private readonly categoryRepository: CategoryRepository,
-    private readonly merchantRepository: MerchantRepository,
-  ) {
-    super({
-      category: {
-        repository: categoryRepository,
-        type: 'one',
-      },
-      merchant: {
-        repository: merchantRepository,
-        type: 'one',
-      },
-    });
-  }
-}
+// types/select-product.type.ts — relations auto-composed; no helper setup
+general: {
+  id: true,
+  name: true,
+  category: { select: { id: true, name: true, slug: true } },
+  merchant: { select: { id: true, name: true, slug: true } },
+} satisfies Prisma.ProductSelect,
 ```
 
 ## Repository Factory (`createPrismaRepository`)
@@ -679,7 +667,9 @@ Build output: `build/compile/` (not `dist/`). ESLint ignores `src/generated/**`.
 | Lock config validation | `src/infrastructure/prisma/utils/validate-lock-config.util.ts` |
 | Admin repository | `src/modules/admin/repositories/admin.repository.ts` |
 | Service | `src/modules/admin/services/admin.service.ts` |
-| Helper (compose nested cache) | `src/modules/product/helpers/product-category-compose.helper.ts` |
+| Helper (validate) | `src/modules/product/helpers/product-category-validate.helper.ts` |
+| Auto compose | `src/infrastructure/prisma/auto-compose.helper.ts` |
+| Repository registry | `src/infrastructure/prisma/repository-registry.ts` |
 | Helper (slug validate) | `src/modules/master-data/helpers/category-slug-validate.helper.ts` |
 | Helper (email validate) | `src/modules/admin/helpers/admin-email-validate.helper.ts` |
 | Helper (auth login) | `src/modules/auth/helpers/auth-authenticate.helper.ts` |

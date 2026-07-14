@@ -198,7 +198,7 @@ Prefer `make cache-keys` over `KEYS` in production-like environments (`KEYS` blo
 We support automatic, transparent nested relation composition at the repository layer.
 
 ### 1. Repository Configuration (Automated Compose)
-Instead of composing relations in the service layer, configure `scalarFields` and `composeHelperToken` in the repository factory:
+Instead of composing relations in the service layer, configure `model` + `scalarFields` in the repository factory. Related models must also register with `model` (they auto-register into `RepositoryRegistry`). Relation field names in `select` must match the target `model` key (e.g. `category` → `model: 'category'`):
 ```typescript
 export const ProductRepository = createPrismaRepository<... >({
   model: 'product',
@@ -212,8 +212,25 @@ export const ProductRepository = createPrismaRepository<... >({
   toPayload: <T extends Prisma.ProductSelect>(data: unknown) =>
     data as ProductPayload<T>,
   scalarFields: Prisma.ProductScalarFieldEnum,
-  composeHelperToken: forwardRef(() => ProductComposeHelper),
 });
+```
+
+Select relations (including nested) — no per-feature compose helper:
+```typescript
+category: {
+  select: {
+    id: true,
+    name: true,
+    slug: true,
+  },
+},
+merchant: {
+  select: {
+    id: true,
+    name: true,
+    slug: true,
+  },
+},
 ```
 
 ### 2. Service Layer remains Clean

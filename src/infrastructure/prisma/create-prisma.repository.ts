@@ -3,7 +3,9 @@ import { Prisma } from 'src/infrastructure/prisma/prisma-client';
 import { PaginateFunction, paginator } from 'prisma/paginator/paginator';
 import { splitSelect } from 'src/common/utils/helper.common';
 import { IPaginatedResult } from 'prisma/interfaces/paginated-result';
+import { AutoComposeHelper } from './auto-compose.helper';
 import { PrismaService } from './prisma.service';
+import { RepositoryRegistry } from './repository-registry';
 import { PrismaModelDelegate } from './types/prisma-delegate.type';
 import { InferRepositoryPayload } from './types/infer-repository-payload.type';
 import {
@@ -60,7 +62,6 @@ export function createPrismaRepository<
   getDelegate: (client: PrismaClientLike) => PrismaModelDelegate;
   toPayload: TToPayload;
   scalarFields?: Record<string, string>;
-  composeHelperToken?: any;
 }) {
   type Payload<T extends TSelect> = [TRepoModel] extends [never]
     ? InferRepositoryPayload<TSelect, T, TToPayload>
@@ -367,17 +368,25 @@ export function createPrismaRepository<
     return typeof cacheTags === 'function' ? cacheTags(where) : cacheTags;
   }
 
-  const DUMMY_COMPOSE_TOKEN = 'DUMMY_COMPOSE_TOKEN';
-
   @Injectable()
   class PrismaRepository {
     constructor(
       public readonly prisma: PrismaService,
       @Optional() @Inject(RedisService) public readonly redis?: RedisService,
       @Optional()
-      @Inject(options.composeHelperToken || DUMMY_COMPOSE_TOKEN)
-      public readonly composeHelper?: any,
-    ) {}
+      @Inject(RepositoryRegistry)
+      public readonly registry?: RepositoryRegistry,
+      @Optional()
+      @Inject(AutoComposeHelper)
+      public readonly autoCompose?: AutoComposeHelper,
+    ) {
+      if (options.model && this.registry) {
+        this.registry.register(options.model, {
+          repository: this,
+          scalarFields: options.scalarFields,
+        });
+      }
+    }
 
     async processSelectAndCompose(
       select: any,
@@ -390,16 +399,22 @@ export function createPrismaRepository<
       const { dbSelect, relations } = splitSelect(select, options.scalarFields);
       const result = await queryFn(dbSelect);
 
-      if (this.composeHelper && result && Object.keys(relations).length > 0) {
+      if (
+        this.autoCompose &&
+        options.model &&
+        result &&
+        Object.keys(relations).length > 0
+      ) {
         if (result.data && Array.isArray(result.data)) {
-          result.data = await this.composeHelper.composeMany(
+          result.data = await this.autoCompose.composeMany(
             result.data,
             relations,
+            options.model,
           );
         } else if (Array.isArray(result)) {
-          return this.composeHelper.composeMany(result, relations);
+          return this.autoCompose.composeMany(result, relations, options.model);
         } else {
-          return this.composeHelper.composeOne(result, relations);
+          return this.autoCompose.composeOne(result, relations, options.model);
         }
       }
 

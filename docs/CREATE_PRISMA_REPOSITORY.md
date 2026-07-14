@@ -3,7 +3,7 @@
 `createPrismaRepository` is a factory function/helper in this NestJS boilerplate designed to abstract data access using **Prisma Client** while transparently integrating several advanced features:
 1. **Auto-Caching & Invalidation** (powered by Redis).
 2. **Row-Level Locking** (Pessimistic Locking on PostgreSQL database).
-3. **Relation Split & Automated Relation Composition** (separating database selects and composing virtual relations across modules using `BaseComposeHelper`).
+3. **Relation Split & Automated Relation Composition** (separating database selects and composing virtual relations via `AutoComposeHelper` + `RepositoryRegistry`).
 4. **Caching Resiliency (Fail-Open)** & **Thundering Herd / Stampede Protection**.
 
 The main goal of this repository layer is to decouple data access logic from the Service layer (`Controller` → `Service` → `Repository` → `Database`/`Redis`) so that the Service remains clean (containing only `handle*` methods) and database access/cache management remains consistent across the application.
@@ -55,11 +55,8 @@ export const MyRepository = createPrismaRepository<
   // Mapping function for type-safe select queries
   toPayload: <T extends Prisma.MyModelSelect>(data: unknown) => data as MyPayload<T>,
   
-  // Enum of scalar fields from the Prisma model (required if using composeHelper)
+  // Enum of scalar fields from the Prisma model (enables auto-compose of relations in select)
   scalarFields: Prisma.MyModelScalarFieldEnum,
-  
-  // NestJS token for the compose helper to stitch cross-module relation data
-  composeHelperToken: forwardRef(() => MyComposeHelper),
 });
 ```
 
@@ -140,9 +137,10 @@ Unlike Optimistic Locking, this feature blocks rows in the PostgreSQL database u
     *   `keyShare`: `FOR KEY SHARE` - Lightest lock for foreign key relations.
 *   **Important**: Using locks requires an active transaction (`tx`) and automatically bypasses caching.
 
-### D. Virtual Relation Composition (`BaseComposeHelper`)
+### D. Virtual Relation Composition (`AutoComposeHelper`)
 Since repositories use caching, fetching nested relations directly via Prisma (`include` or nested `select`) makes caching and fine-grained invalidation difficult.
-*   **Solution**: The repository splits the select query using the `splitSelect` utility. Scalar database fields are fetched from the database or cache of the respective model, while relation fields are fetched through their respective repositories/helpers in parallel and merged in memory using a helper extending `BaseComposeHelper`.
+*   **Solution**: The repository splits the select query using the `splitSelect` utility. Scalar fields are fetched from the database or cache of the respective model, while relation fields are resolved in parallel by `AutoComposeHelper` using repositories looked up from `RepositoryRegistry` (keyed by `model`). Nested relations recurse automatically.
+*   **Convention**: Prisma relation field name must match the target repository `model` (e.g. `category` → `model: 'category'`). `one` if parent has `${relation}Id`; otherwise `many` with FK `${sourceModel}Id` on the target.
 *   This ensures fast caching at the entity level while still resolving relations efficiently.
 
 ---
@@ -212,13 +210,11 @@ We create a repository for `Product` with Redis caching enabled.
 
 ```typescript
 // src/modules/product/repositories/product.repository.ts
-import { forwardRef } from '@nestjs/common';
 import { Prisma } from 'src/infrastructure/prisma/prisma-client';
 import {
   createPrismaRepository,
   PrismaRepositoryInstance,
 } from 'src/infrastructure/prisma/create-prisma.repository';
-import { ProductComposeHelper } from '../helpers/product-compose.helper';
 
 export type ProductPayload<T extends Prisma.ProductSelect> =
   Prisma.ProductGetPayload<{ select: T }>;
@@ -249,7 +245,6 @@ export const ProductRepository = createPrismaRepository<
   toPayload: <T extends Prisma.ProductSelect>(data: unknown) =>
     data as ProductPayload<T>,
   scalarFields: Prisma.ProductScalarFieldEnum,
-  composeHelperToken: forwardRef(() => ProductComposeHelper),
 });
 
 export type ProductRepository = PrismaRepositoryInstance<
@@ -397,64 +392,17 @@ Handling stock deduction when an order is created. We must lock the product row 
 
 ---
 
-### Use Case 4: Virtual Relation Composition (`BaseComposeHelper`)
-Fetching a product with category and merchant data decoupled (without using database `join` directly).
+### Use Case 4: Virtual Relation Composition (`AutoComposeHelper`)
+Fetching a product with category and merchant data decoupled (without using database `join` directly). No per-feature compose helper is required — ensure related repositories use `model` (+ preferably `scalarFields`) so they register in `RepositoryRegistry`.
 
-1.  **Create Compose Helper**
-    Create an `@Injectable` helper class to stitch relations:
-    ```typescript
-    // src/modules/product/helpers/product-compose.helper.ts
-    import { Injectable } from '@nestjs/common';
-    import { BaseComposeHelper } from 'src/common/utils/base-compose.helper';
-    import { CategoryRepository } from 'src/modules/master-data/repositories/category.repository';
-    import { MerchantRepository } from 'src/modules/merchant/repositories/merchant.repository';
+1.  **Configure source repository with `scalarFields`**
+    See Use Case 1 — `ProductRepository` already has `model: 'product'` and `scalarFields: Prisma.ProductScalarFieldEnum`.
 
-    @Injectable()
-    export class ProductComposeHelper extends BaseComposeHelper {
-      constructor(
-        private readonly categoryRepository: CategoryRepository,
-        private readonly merchantRepository: MerchantRepository,
-      ) {
-        // Register virtual relations and their respective repositories
-        super({
-          category: {
-            repository: categoryRepository,
-            type: 'one', // one category per product
-            foreignKey: 'categoryId',
-          },
-          merchant: {
-            repository: merchantRepository,
-            type: 'one', // one merchant per product
-            foreignKey: 'merchantId',
-          },
-        });
-      }
-    }
-    ```
-
-2.  **Register in Module Providers**
-    ```typescript
-    // src/modules/product/product.module.ts
-    import { Module, forwardRef } from '@nestjs/common';
-    import { ProductService } from './services/product.service';
-    import { ProductRepository } from './repositories/product.repository';
-    import { ProductComposeHelper } from './helpers/product-compose.helper';
-    import { MasterDataModule } from '../master-data/master-data.module';
-    import { MerchantModule } from '../merchant/merchant.module';
-
-    @Module({
-      imports: [
-        forwardRef(() => MasterDataModule),
-        forwardRef(() => MerchantModule),
-      ],
-      providers: [ProductService, ProductRepository, ProductComposeHelper],
-      exports: [ProductService, ProductRepository],
-    })
-    export class ProductModule {}
-    ```
+2.  **Ensure related modules are loaded**
+    `CategoryRepository` / `MerchantRepository` must be providers of modules imported by `AppModule` (or the feature module) so they register on startup.
 
 3.  **Usage in Service Layer**
-    The service layer remains clean using general/detailed select presets. Select splitting and relationship stitching are resolved transparently:
+    Put relations in the select preset; splitting and stitching are resolved transparently (including nested selects):
     ```typescript
     // src/modules/product/services/product.service.ts
     async handleGetProductDetail(id: string) {
@@ -464,10 +412,10 @@ Fetching a product with category and merchant data decoupled (without using data
           id: true,
           name: true,
           price: true,
-          category: { select: { id: true, name: true } }, // category relation
-          merchant: { select: { id: true, name: true } }, // merchant relation
+          category: { select: { id: true, name: true } },
+          merchant: { select: { id: true, name: true } },
         },
-        setCache: true, // The composed product data is saved in cache
+        setCache: true,
       });
     }
     ```

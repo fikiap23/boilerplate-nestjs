@@ -35,6 +35,7 @@ export const MerchantRepository = createPrismaRepository<
   getDelegate: (client) => client.merchant,
   toPayload: <T extends Prisma.MerchantSelect>(data: unknown) =>
     data as MerchantPayload<T>,
+  scalarFields: Prisma.MerchantScalarFieldEnum,
 });
 
 export type MerchantRepository = PrismaRepositoryInstance<

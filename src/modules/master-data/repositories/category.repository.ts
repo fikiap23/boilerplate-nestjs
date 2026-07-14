@@ -35,6 +35,7 @@ export const CategoryRepository = createPrismaRepository<
   getDelegate: (client) => client.category,
   toPayload: <T extends Prisma.CategorySelect>(data: unknown) =>
     data as CategoryPayload<T>,
+  scalarFields: Prisma.CategoryScalarFieldEnum,
 });
 
 export type CategoryRepository = PrismaRepositoryInstance<
